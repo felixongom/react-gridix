@@ -47,7 +47,7 @@ Demo Display
 ![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Capture1.PNG)
 ![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Capture.PNG)
 ![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/data-smaple-ui.PNG)
-![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Tailwind.PNG)
+![Drag Racing](/images/Tailwind.PNG)
 
 ---
 
