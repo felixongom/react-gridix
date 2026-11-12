@@ -1,0 +1,48 @@
+{
+  "name": "react-gridix",
+  "version": "0.2.4",
+  "description": "A simple React library for displaying arrays in tables",
+  "author": "Felix Ongom",
+  "type": "module",
+  "main": "./dist/react-gridix.cjs",
+  "module": "./dist/react-gridix.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "keywords": ["table", "react-table", "react-grid", "tabular-display"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/react-gridix.js",
+      "require": "./dist/react-gridix.cjs"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": ["dist"],
+  "sideEffects": ["**/*.css"],
+  "scripts": {
+    "dev": "vite --config vite.demo.config.ts",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "jspdf": ">=2",
+    "jspdf-autotable": ">=3.5",
+    "html2canvas": ">=1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vite-plugin-dts": "^4.0.0"
+  }
+}

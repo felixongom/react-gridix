@@ -1,0 +1,175 @@
+/*
+  Built-in themes. They only apply when you pass a name: <DataGrid theme="ocean" />.
+  Each one is just a set of CSS variables on [data-rg-theme="..."], with zero specificity, so
+  you can still override any variable (or any class) yourself. Make your own the same way:
+    [data-rg-theme="brand"] { --rg-header-bg: #7c3aed; ... }
+*/
+
+/* Ocean: cool blue, gradient header */
+:where([data-rg-theme="ocean"]) {
+  --rg-font: "Inter", system-ui, sans-serif;
+  --rg-text: #0f172a; --rg-muted: #64748b; --rg-border: #bfdbfe; --rg-surface: #ffffff;
+  --rg-primary: #0284c7; --rg-danger: #e11d48;
+  --rg-grid-bg: #ffffff; --rg-grid-radius: 14px; --rg-grid-shadow: 0 10px 30px rgba(2, 132, 199, 0.15);
+  --rg-toolbar-bg: #f0f9ff;
+  --rg-input-bg: #ffffff; --rg-input-border: #bae6fd; --rg-input-text: #0f172a;
+  --rg-header-bg: linear-gradient(90deg, #075985, #0284c7); --rg-header-text: #ffffff;
+  --rg-header-hover-bg: rgba(255, 255, 255, 0.16); --rg-header-border: transparent;
+  --rg-cell-border: #e0f2fe; --rg-row-hover: #e0f2fe;
+  --rg-stripe-a: #ffffff; --rg-stripe-b: #f0f9ff;
+  --rg-footer-bg: #f0f9ff; --rg-footer-text: #0369a1; --rg-btn-hover: #e0f2fe;
+  --rg-filter-active: #fde047; --rg-filter-glow: rgba(253, 224, 71, 0.4);
+  --rg-popup-bg: #ffffff; --rg-popup-text: #0f172a; --rg-popup-border: #bae6fd; --rg-popup-radius: 12px;
+  --rg-checkbox-color: #0284c7; --rg-checkbox-border: #7dd3fc;
+  --rg-on-primary: #ffffff;
+  --rg-pinned-bg: #ffffff; --rg-pinned-header-bg: #075985; --rg-selected-bg: #bae6fd; --rg-skeleton-a: #e0f2fe; --rg-skeleton-b: #f0f9ff;
+}
+
+/* Midnight: dark slate with an indigo accent */
+:where([data-rg-theme="midnight"]) {
+  color-scheme: dark;
+  --rg-font: "Inter", system-ui, sans-serif;
+  --rg-text: #e2e8f0; --rg-muted: #94a3b8; --rg-border: #2a3654; --rg-surface: #0b1020;
+  --rg-primary: #818cf8; --rg-danger: #fb7185;
+  --rg-grid-bg: #0b1020; --rg-grid-radius: 14px; --rg-grid-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --rg-toolbar-bg: #0f1730;
+  --rg-input-bg: #151d33; --rg-input-border: #3b4a78; --rg-input-text: #e2e8f0;
+  --rg-header-bg: #151d33; --rg-header-text: #c7d2fe;
+  --rg-header-hover-bg: rgba(129, 140, 248, 0.16); --rg-header-border: #2a3654;
+  --rg-cell-border: #18213a; --rg-row-hover: #1c2850;
+  --rg-stripe-a: #0b1020; --rg-stripe-b: #10172b;
+  --rg-footer-bg: #0f1730; --rg-footer-text: #94a3b8; --rg-btn-hover: #26324f;
+  --rg-invalid-bg: #4c0519;
+  --rg-filter-active: #818cf8; --rg-filter-glow: rgba(129, 140, 248, 0.35);
+  --rg-popup-bg: #151d33; --rg-popup-text: #e2e8f0; --rg-popup-border: #3b4a78; --rg-popup-radius: 12px;
+  --rg-popup-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --rg-checkbox-color: #818cf8; --rg-checkbox-border: #5b6b99; --rg-checkbox-bg: #0b1020; --rg-checkbox-tick: #0b1020;
+  --rg-on-primary: #0b1020;
+  --rg-pinned-bg: #0b1020; --rg-pinned-header-bg: #151d33; --rg-selected-bg: #2a3866; --rg-skeleton-a: #151d33; --rg-skeleton-b: #26324f;
+}
+
+/* Sunset: warm cream with an orange-to-pink header */
+:where([data-rg-theme="sunset"]) {
+  --rg-font: "Georgia", "Times New Roman", serif;
+  --rg-text: #431407; --rg-muted: #9a3412; --rg-border: #fed7aa; --rg-surface: #fffbf5;
+  --rg-primary: #c2410c; --rg-danger: #be123c;
+  --rg-grid-bg: #fffbf5; --rg-grid-radius: 18px; --rg-grid-shadow: 0 12px 32px rgba(234, 88, 12, 0.18);
+  --rg-toolbar-bg: #fff7ed;
+  --rg-input-bg: #ffffff; --rg-input-border: #fdba74; --rg-input-text: #431407;
+  --rg-header-bg: linear-gradient(90deg, #c2410c, #be185d); --rg-header-text: #ffffff;
+  --rg-header-hover-bg: rgba(255, 255, 255, 0.2); --rg-header-border: transparent;
+  --rg-cell-border: #ffedd5; --rg-row-hover: #ffedd5;
+  --rg-stripe-a: #fffbf5; --rg-stripe-b: #fff1e6;
+  --rg-footer-bg: #fff7ed; --rg-footer-text: #9a3412; --rg-btn-hover: #ffedd5;
+  --rg-filter-active: #fef08a; --rg-filter-glow: rgba(254, 240, 138, 0.5);
+  --rg-popup-bg: #fffbf5; --rg-popup-text: #431407; --rg-popup-border: #fdba74; --rg-popup-radius: 14px;
+  --rg-checkbox-color: #ea580c; --rg-checkbox-border: #fb923c; --rg-checkbox-radius: 2px;
+  --rg-on-primary: #ffffff;
+  --rg-pinned-bg: #fffbf5; --rg-pinned-header-bg: #c2410c; --rg-selected-bg: #fed7aa; --rg-skeleton-a: #ffedd5; --rg-skeleton-b: #fff7ed;
+}
+
+/* Forest: calm greens, solid dark header, sharper corners */
+:where([data-rg-theme="forest"]) {
+  --rg-font: system-ui, sans-serif;
+  --rg-text: #14301f; --rg-muted: #4d7c5f; --rg-border: #bbd8c4; --rg-surface: #fafdf9;
+  --rg-primary: #15803d; --rg-danger: #b91c1c;
+  --rg-grid-bg: #fafdf9; --rg-grid-radius: 6px; --rg-grid-shadow: 0 6px 18px rgba(20, 83, 45, 0.14);
+  --rg-toolbar-bg: #f0f7f1;
+  --rg-input-bg: #ffffff; --rg-input-border: #a7cbb2; --rg-input-text: #14301f;
+  --rg-header-bg: #14532d; --rg-header-text: #ecfdf5;
+  --rg-header-hover-bg: rgba(255, 255, 255, 0.14); --rg-header-border: transparent;
+  --rg-cell-border: #e1efe5; --rg-row-hover: #dcfce7;
+  --rg-stripe-a: #fafdf9; --rg-stripe-b: #eef7f0;
+  --rg-footer-bg: #f0f7f1; --rg-footer-text: #166534; --rg-btn-hover: #dcfce7;
+  --rg-filter-active: #86efac; --rg-filter-glow: rgba(134, 239, 172, 0.4);
+  --rg-popup-bg: #fafdf9; --rg-popup-text: #14301f; --rg-popup-border: #a7cbb2; --rg-popup-radius: 6px;
+  --rg-checkbox-color: #15803d; --rg-checkbox-border: #6aa57d;
+  --rg-on-primary: #ffffff;
+  --rg-pinned-bg: #fafdf9; --rg-pinned-header-bg: #14532d; --rg-selected-bg: #bbf7d0; --rg-skeleton-a: #dcfce7; --rg-skeleton-b: #f0fdf4;
+}
+
+/* Lavender: soft purple, light, rounded, gradient header */
+:where([data-rg-theme="lavender"]) {
+  --rg-font: "Inter", system-ui, sans-serif;
+  --rg-text: #2e1065; --rg-muted: #7c3aed; --rg-border: #ddd6fe; --rg-surface: #ffffff;
+  --rg-primary: #7c3aed; --rg-danger: #e11d48;
+  --rg-grid-bg: #fdfcff; --rg-grid-radius: 16px; --rg-grid-shadow: 0 12px 32px rgba(124, 58, 237, 0.16);
+  --rg-toolbar-bg: #f5f3ff;
+  --rg-input-bg: #ffffff; --rg-input-border: #c4b5fd; --rg-input-text: #2e1065;
+  --rg-header-bg: linear-gradient(90deg, #5b21b6, #9333ea); --rg-header-text: #ffffff;
+  --rg-header-hover-bg: rgba(255, 255, 255, 0.18); --rg-header-border: transparent;
+  --rg-cell-border: #ede9fe; --rg-row-hover: #f5f3ff;
+  --rg-stripe-a: #fdfcff; --rg-stripe-b: #f5f3ff;
+  --rg-footer-bg: #f5f3ff; --rg-footer-text: #6d28d9; --rg-btn-hover: #ede9fe;
+  --rg-filter-active: #fde68a; --rg-filter-glow: rgba(253, 230, 138, 0.45);
+  --rg-popup-bg: #ffffff; --rg-popup-text: #2e1065; --rg-popup-border: #c4b5fd; --rg-popup-radius: 14px;
+  --rg-on-primary: #ffffff;
+  --rg-pinned-bg: #fdfcff; --rg-pinned-header-bg: #5b21b6; --rg-selected-bg: #ddd6fe; --rg-skeleton-a: #ede9fe; --rg-skeleton-b: #f5f3ff;
+  --rg-checkbox-color: #7c3aed; --rg-checkbox-border: #a78bfa; --rg-checkbox-radius: 2px;
+}
+
+/* Coffee: warm browns and cream, serif type, solid header */
+:where([data-rg-theme="coffee"]) {
+  --rg-font: "Georgia", "Times New Roman", serif;
+  --rg-text: #3b2a20; --rg-muted: #8a6f5d; --rg-border: #dccab8; --rg-surface: #fbf6ef;
+  --rg-primary: #8f5427; --rg-danger: #b91c1c;
+  --rg-grid-bg: #fbf6ef; --rg-grid-radius: 8px; --rg-grid-shadow: 0 8px 24px rgba(91, 58, 41, 0.18);
+  --rg-toolbar-bg: #f4ebdd;
+  --rg-input-bg: #fffdf9; --rg-input-border: #d3bda6; --rg-input-text: #3b2a20;
+  --rg-header-bg: #4a2f21; --rg-header-text: #f6e9d7;
+  --rg-header-hover-bg: rgba(255, 255, 255, 0.12); --rg-header-border: transparent;
+  --rg-cell-border: #eadfce; --rg-row-hover: #f1e4d2;
+  --rg-stripe-a: #fbf6ef; --rg-stripe-b: #f4ebdd;
+  --rg-footer-bg: #f4ebdd; --rg-footer-text: #7a5a45; --rg-btn-hover: #ead9c3;
+  --rg-filter-active: #fcd34d; --rg-filter-glow: rgba(252, 211, 77, 0.4);
+  --rg-popup-bg: #fffdf9; --rg-popup-text: #3b2a20; --rg-popup-border: #d3bda6; --rg-popup-radius: 8px;
+  --rg-on-primary: #ffffff;
+  --rg-pinned-bg: #fbf6ef; --rg-pinned-header-bg: #4a2f21; --rg-selected-bg: #ecd5b8; --rg-skeleton-a: #eadfce; --rg-skeleton-b: #f6efe4;
+  --rg-checkbox-color: #a1622f; --rg-checkbox-border: #b9956f;
+}
+
+/* Graphite: dark neutral grey with a teal accent, sharp and quiet */
+:where([data-rg-theme="graphite"]) {
+  color-scheme: dark;
+  --rg-font: system-ui, sans-serif;
+  --rg-text: #e5e7eb; --rg-muted: #9ca3af; --rg-border: #374151; --rg-surface: #18181b;
+  --rg-primary: #2dd4bf; --rg-danger: #f87171;
+  --rg-grid-bg: #18181b; --rg-grid-radius: 4px; --rg-grid-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --rg-toolbar-bg: #1f1f23;
+  --rg-input-bg: #27272a; --rg-input-border: #52525b; --rg-input-text: #e5e7eb;
+  --rg-header-bg: #27272a; --rg-header-text: #99f6e4;
+  --rg-header-hover-bg: rgba(94, 234, 212, 0.12); --rg-header-border: #3f3f46;
+  --rg-cell-border: #27272a; --rg-row-hover: #26303a;
+  --rg-stripe-a: #18181b; --rg-stripe-b: #1d1d21;
+  --rg-footer-bg: #1f1f23; --rg-footer-text: #9ca3af; --rg-btn-hover: #3f3f46;
+  --rg-invalid-bg: #450a0a;
+  --rg-filter-active: #2dd4bf; --rg-filter-glow: rgba(45, 212, 191, 0.35);
+  --rg-popup-bg: #27272a; --rg-popup-text: #e5e7eb; --rg-popup-border: #52525b; --rg-popup-radius: 4px;
+  --rg-popup-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+  --rg-pinned-bg: #18181b; --rg-pinned-header-bg: #27272a; --rg-selected-bg: #134e4a; --rg-skeleton-a: #27272a; --rg-skeleton-b: #3a3a40;
+  --rg-checkbox-color: #2dd4bf; --rg-checkbox-border: #71717a; --rg-checkbox-bg: #18181b; --rg-checkbox-tick: #042f2e;
+  --rg-on-primary: #042f2e;
+}
+
+/* Aurora: deep night sky with a green-to-violet gradient header */
+:where([data-rg-theme="aurora"]) {
+  color-scheme: dark;
+  --rg-font: "Inter", system-ui, sans-serif;
+  --rg-text: #e0f2f1; --rg-muted: #8fb5b0; --rg-border: #1f3b4d; --rg-surface: #0b1d2a;
+  --rg-primary: #34d399; --rg-danger: #fb7185;
+  --rg-grid-bg: #0b1d2a; --rg-grid-radius: 16px; --rg-grid-shadow: 0 14px 44px rgba(52, 211, 153, 0.18);
+  --rg-toolbar-bg: #0e2433;
+  --rg-input-bg: #12304a; --rg-input-border: #25506b; --rg-input-text: #e0f2f1;
+  --rg-header-bg: linear-gradient(90deg, #047857, #0369a1 55%, #6d28d9); --rg-header-text: #ffffff;
+  --rg-header-hover-bg: rgba(255, 255, 255, 0.16); --rg-header-border: transparent;
+  --rg-cell-border: #14293a; --rg-row-hover: #143247;
+  --rg-stripe-a: #0b1d2a; --rg-stripe-b: #0f2536;
+  --rg-footer-bg: #0e2433; --rg-footer-text: #8fb5b0; --rg-btn-hover: #1c4560;
+  --rg-invalid-bg: #4c0519;
+  --rg-filter-active: #6ee7b7; --rg-filter-glow: rgba(110, 231, 183, 0.4);
+  --rg-popup-bg: #12304a; --rg-popup-text: #e0f2f1; --rg-popup-border: #2f6a8c; --rg-popup-radius: 14px;
+  --rg-popup-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
+  --rg-pinned-bg: #0b1d2a; --rg-pinned-header-bg: #047857; --rg-selected-bg: #0f4a45; --rg-skeleton-a: #12304a; --rg-skeleton-b: #1d4863;
+  --rg-checkbox-color: #34d399; --rg-checkbox-border: #3d7a8f; --rg-checkbox-bg: #0b1d2a; --rg-checkbox-tick: #052e22;
+  --rg-on-primary: #052e22;
+}

@@ -1,0 +1,371 @@
+/*
+  Every rule is wrapped in :where() so it has zero specificity: Tailwind utilities (or any class
+  you pass) win without !important. Colours and sizes read CSS variables with a fallback, so any
+  parent element (or a theme) can change them.
+*/
+:where(.rg-grid) {
+  display: flex; flex-direction: column; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+  font-family: var(--rg-font, system-ui, sans-serif); font-size: 14px;
+  color: var(--rg-text, #111827); background: var(--rg-grid-bg, var(--rg-surface, #fff));
+  border: 1px solid var(--rg-border, #d1d5db); border-radius: var(--rg-grid-radius, 10px);
+  box-shadow: var(--rg-grid-shadow, none); overflow: hidden;
+}
+:where(.rg-grid__toolbar) {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border-bottom: 1px solid var(--rg-border, #d1d5db); background: var(--rg-toolbar-bg, transparent);
+}
+:where(.rg-grid__toolbar-left, .rg-grid__toolbar-actions) { display: flex; align-items: center; gap: 10px; min-width: 0; }
+:where(.rg-grid__toolbar-left) { flex: 1; }
+:where(.rg-grid__selected-count) { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--rg-selected-bg, #eef2ff); color: var(--rg-primary, #4f46e5); }
+:where(.rg-grid__tool-btn) {
+  padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+  color: var(--rg-input-text, var(--rg-text, #111827)); background: var(--rg-input-bg, var(--rg-surface, #fff));
+  border: 1px solid var(--rg-input-border, var(--rg-border, #d1d5db)); border-radius: 8px;
+}
+:where(.rg-grid__tool-btn:hover) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-grid__tool-btn:focus-visible) { outline: 2px solid var(--rg-primary, #4f46e5); outline-offset: 1px; }
+:where(.rg-grid__search) {
+  width: 260px; max-width: 100%; padding: 7px 12px; font: inherit;
+  border: 1px solid var(--rg-input-border, var(--rg-border, #d1d5db)); border-radius: 8px;
+  background: var(--rg-input-bg, var(--rg-surface, #fff)); color: var(--rg-input-text, inherit);
+}
+:where(.rg-grid__search:focus, .rg-grid__filter-input:focus, .rg-grid__page-size:focus) {
+  outline: 2px solid var(--rg-primary, #4f46e5); outline-offset: -1px;
+}
+:where(.rg-grid__scroll) { overflow: auto; scroll-behavior: smooth; }
+:where(.rg-grid__table) { width: 100%; border-collapse: collapse; }
+/* The header background sits on thead (so a gradient spans the whole row); the cells stay transparent. */
+:where(.rg-grid__thead) {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--rg-header-bg, var(--rg-bg-subtle, #f3f4f6)); color: var(--rg-header-text, inherit);
+}
+/* Widths (set by resizing or the width prop) include the cell padding, so a drag of 80px grows the column by exactly 80px */
+:where(.rg-grid__th, .rg-grid__td) { box-sizing: border-box; }
+:where(.rg-grid__th) {
+  position: relative; padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap; background: transparent;
+  border-bottom: 1px solid var(--rg-header-border, var(--rg-border, #d1d5db)); user-select: none;
+}
+:where(.rg-grid__th--sortable) { cursor: pointer; }
+:where(.rg-grid__th--sortable:hover) { background-image: linear-gradient(var(--rg-header-hover-bg, rgba(0, 0, 0, 0.06)), var(--rg-header-hover-bg, rgba(0, 0, 0, 0.06))); }
+:where(.rg-grid__th:focus-visible, .rg-grid__td:focus-visible) { outline: 2px solid var(--rg-primary, #4f46e5); outline-offset: -2px; }
+:where(.rg-grid__th-content) { display: inline-flex; align-items: center; gap: 6px; }
+:where(.rg-grid__sort) { font-size: 10px; opacity: 0.55; white-space: nowrap; }
+:where(.rg-grid__sort-order) { margin-left: 1px; font-size: 9px; }
+:where(.rg-grid__select-cell) { width: 38px; padding-left: 0; padding-right: 0; text-align: center; }
+
+/* Filter indicator: a button holding a dot (or your own component) */
+:where(.rg-grid__filter-btn) {
+  display: inline-flex; align-items: center; justify-content: center; padding: 4px; margin: 0;
+  font: inherit; line-height: 1; color: inherit; background: transparent; border: 0; border-radius: 999px; cursor: pointer;
+}
+:where(.rg-grid__filter-btn:hover, .rg-grid__filter-btn--open) { background: var(--rg-header-hover-bg, rgba(0, 0, 0, 0.08)); }
+:where(.rg-grid__filter-btn:focus-visible) { outline: 2px solid var(--rg-primary, #4f46e5); outline-offset: 1px; }
+:where(.rg-grid__filter-dot) {
+  display: block; width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; opacity: 0.4; transition: opacity 0.15s, background 0.15s, box-shadow 0.15s;
+}
+:where(.rg-grid__filter-btn:hover .rg-grid__filter-dot) { opacity: 0.75; }
+:where(.rg-grid__filter-btn--active .rg-grid__filter-dot) {
+  opacity: 1; background: var(--rg-filter-active, var(--rg-primary, #4f46e5));
+  box-shadow: 0 0 0 3px var(--rg-filter-glow, rgba(79, 70, 229, 0.25));
+}
+
+/* Filter popup (drawn in document.body, so it is styled by its own class and theme attribute) */
+:where(.rg-grid-popup) {
+  z-index: 1000; display: flex; align-items: center; gap: 8px; box-sizing: border-box; padding: 10px; min-width: 220px;
+  font-family: var(--rg-font, system-ui, sans-serif); font-size: 14px;
+  color: var(--rg-popup-text, #111827); background: var(--rg-popup-bg, #fff);
+  border: 1px solid var(--rg-popup-border, #d1d5db); border-radius: var(--rg-popup-radius, 10px);
+  box-shadow: var(--rg-popup-shadow, 0 10px 30px rgba(15, 23, 42, 0.18));
+  animation: rg-pop-in 0.14s ease-out;
+}
+:where(.rg-grid__filter-input) {
+  flex: 1; min-width: 0; box-sizing: border-box; padding: 6px 10px; font: inherit; font-size: 13px;
+  border: 1px solid var(--rg-input-border, var(--rg-border, #d1d5db)); border-radius: 6px;
+  background: var(--rg-input-bg, #fff); color: var(--rg-input-text, inherit);
+}
+:where(.rg-grid__filter-clear) {
+  padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; color: inherit;
+  background: transparent; border: 1px solid var(--rg-popup-border, #d1d5db); border-radius: 6px;
+}
+:where(.rg-grid__filter-clear:hover) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-grid__filter-fields) { display: flex; flex: 1; gap: 8px; min-width: 0; }
+:where(.rg-grid__filter-field) { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; opacity: 0.9; }
+:where(.rg-grid__filter-options) { flex-direction: column; gap: 6px; max-height: 220px; overflow: auto; padding-right: 4px; }
+:where(.rg-grid__filter-empty) { font-size: 13px; opacity: 0.7; }
+:where(.rg-grid-popup input[type="date"], .rg-grid__editor[type="date"]) { font-family: inherit; }
+@keyframes rg-pop-in { from { opacity: 0; transform: translateY(-4px); } }
+
+:where(.rg-grid__td) { padding: 9px 12px; border-bottom: 1px solid var(--rg-cell-border, #eef0f3); }
+:where(.rg-grid__td--editable) { cursor: text; }
+:where(.rg-grid__td--editing) { padding: 3px 6px; }
+:where(.rg-grid__row--stripe-a) { background: var(--rg-stripe-a, transparent); }
+:where(.rg-grid__row--stripe-b) { background: var(--rg-stripe-b, #fafafa); }
+/* After the stripe rules on purpose: same (zero) specificity, later wins. */
+:where(.rg-grid__row:hover) { background: var(--rg-row-hover, #f3f4f6); }
+:where(.rg-grid__row--selected) { background: var(--rg-selected-bg, #eef2ff); }
+:where(.rg-grid__row--clickable) { cursor: pointer; }
+
+/* Pinned columns stick to the left or right edge. They need an opaque base colour so scrolling
+   cells do not show through; the stripe, hover and selected colours are layered on top as images. */
+:where(.rg-grid__pinned) { position: sticky; z-index: 1; background-color: var(--rg-pinned-bg, var(--rg-grid-bg, var(--rg-surface, #fff))); }
+:where(thead .rg-grid__pinned) { z-index: 2; background-color: var(--rg-pinned-header-bg, var(--rg-bg-subtle, #f3f4f6)); }
+:where(.rg-grid__pinned--left.rg-grid__pinned--edge) { box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.25); }
+:where(.rg-grid__pinned--right.rg-grid__pinned--edge) { box-shadow: -2px 0 4px -2px rgba(0, 0, 0, 0.25); }
+:where(.rg-grid__row--stripe-a > .rg-grid__pinned) { background-image: linear-gradient(var(--rg-stripe-a, transparent), var(--rg-stripe-a, transparent)); }
+:where(.rg-grid__row--stripe-b > .rg-grid__pinned) { background-image: linear-gradient(var(--rg-stripe-b, #fafafa), var(--rg-stripe-b, #fafafa)); }
+:where(.rg-grid__row:hover > .rg-grid__pinned) { background-image: linear-gradient(var(--rg-row-hover, #f3f4f6), var(--rg-row-hover, #f3f4f6)); }
+:where(.rg-grid__row--selected > .rg-grid__pinned) { background-image: linear-gradient(var(--rg-selected-bg, #eef2ff), var(--rg-selected-bg, #eef2ff)); }
+
+/* Column resize handle on the right edge of a header cell */
+:where(.rg-grid__resizer) {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; user-select: none;
+}
+:where(.rg-grid__resizer::after) {
+  content: ""; position: absolute; top: 25%; bottom: 25%; right: 3px; width: 2px; border-radius: 1px; background: currentColor; opacity: 0.2;
+}
+:where(.rg-grid__resizer:hover::after) { opacity: 0.6; }
+
+/* Virtualized grid: rows have a fixed height and never wrap */
+:where(.rg-grid--virtual .rg-grid__td) { box-sizing: border-box; white-space: nowrap; overflow: hidden; padding-top: 0; padding-bottom: 0; }
+:where(.rg-grid__spacer > td) { padding: 0; border: 0; }
+
+/* Loading skeleton: grey bars with a moving highlight */
+:where(.rg-grid__skeleton) {
+  display: block; height: 12px; max-width: 100%; border-radius: 6px;
+  background: linear-gradient(90deg, var(--rg-skeleton-a, #e5e7eb) 25%, var(--rg-skeleton-b, #f3f4f6) 50%, var(--rg-skeleton-a, #e5e7eb) 75%);
+  background-size: 200% 100%; animation: rg-shimmer 1.3s ease-in-out infinite;
+}
+:where(.rg-grid__skeleton-row > .rg-grid__td) { padding-top: 14px; padding-bottom: 14px; }
+@keyframes rg-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+:where(.rg-grid__error) { color: var(--rg-danger, #dc2626); }
+
+/*
+  Row animations. A row plays its "in" animation once, when it is created (a new row, a new page), and its
+  "out" animation when it is removed (it stays on screen as a copy until the animation ends). Rows that stay
+  are never touched. The grid adds two classes to each row: `rg-grid__row--enter` (timing and delay) plus
+  `rg-row-in--<name>`, and for leaving rows `rg-grid__row--exit` plus `rg-row-out--<name>`.
+  Variables: --rg-row-duration, --rg-row-exit-duration, --rg-row-stagger; --rg-i is the row's stagger position.
+*/
+:where(.rg-grid__row--enter) {
+  animation-name: rg-in-slide-up; animation-duration: var(--rg-row-duration, 0.38s);
+  animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); animation-fill-mode: backwards;
+  animation-delay: calc(var(--rg-i, 0) * var(--rg-row-stagger, 28ms));
+}
+:where(.rg-grid__row--exit) {
+  animation-name: rg-out-fade; animation-duration: var(--rg-row-exit-duration, 0.3s);
+  animation-timing-function: ease-in; animation-fill-mode: forwards;
+  animation-delay: calc(var(--rg-i, 0) * var(--rg-row-stagger, 28ms) * 0.5);
+  pointer-events: none; user-select: none;
+}
+:where(.rg-row-in--fade) { animation-name: rg-in-fade; }
+:where(.rg-row-in--slide-up) { animation-name: rg-in-slide-up; }
+:where(.rg-row-in--slide-down) { animation-name: rg-in-slide-down; }
+:where(.rg-row-in--slide-left) { animation-name: rg-in-slide-left; }
+:where(.rg-row-in--slide-right) { animation-name: rg-in-slide-right; }
+:where(.rg-row-in--zoom) { animation-name: rg-in-zoom; }
+:where(.rg-row-in--flip-x) { animation-name: rg-in-flip-x; }
+:where(.rg-row-in--flip-y) { animation-name: rg-in-flip-y; }
+:where(.rg-row-in--rotate) { animation-name: rg-in-rotate; }
+:where(.rg-row-in--skew) { animation-name: rg-in-skew; }
+:where(.rg-row-in--blur) { animation-name: rg-in-blur; }
+:where(.rg-row-in--bounce) { animation-name: rg-in-bounce; animation-timing-function: ease-out; }
+:where(.rg-row-out--fade) { animation-name: rg-out-fade; }
+:where(.rg-row-out--slide-up) { animation-name: rg-out-slide-up; }
+:where(.rg-row-out--slide-down) { animation-name: rg-out-slide-down; }
+:where(.rg-row-out--slide-left) { animation-name: rg-out-slide-left; }
+:where(.rg-row-out--slide-right) { animation-name: rg-out-slide-right; }
+:where(.rg-row-out--zoom) { animation-name: rg-out-zoom; }
+:where(.rg-row-out--flip-x) { animation-name: rg-out-flip-x; }
+:where(.rg-row-out--flip-y) { animation-name: rg-out-flip-y; }
+:where(.rg-row-out--rotate) { animation-name: rg-out-rotate; }
+:where(.rg-row-out--skew) { animation-name: rg-out-skew; }
+:where(.rg-row-out--blur) { animation-name: rg-out-blur; }
+:where(.rg-row-out--bounce) { animation-name: rg-out-bounce; animation-timing-function: ease-in; }
+
+@keyframes rg-row-in { from { opacity: 0; transform: translateY(14px); } }
+@keyframes rg-in-fade { from { opacity: 0; } }
+@keyframes rg-in-slide-up { from { opacity: 0; transform: translateY(14px); } }
+@keyframes rg-in-slide-down { from { opacity: 0; transform: translateY(-14px); } }
+@keyframes rg-in-slide-left { from { opacity: 0; transform: translateX(-32px); } }
+@keyframes rg-in-slide-right { from { opacity: 0; transform: translateX(32px); } }
+@keyframes rg-in-zoom { from { opacity: 0; transform: scale(0.6); } }
+@keyframes rg-in-flip-x { from { opacity: 0; transform: perspective(600px) rotateX(-90deg); } }
+@keyframes rg-in-flip-y { from { opacity: 0; transform: perspective(600px) rotateY(90deg); } }
+@keyframes rg-in-rotate { from { opacity: 0; transform: rotate(-12deg) scale(0.85); } }
+@keyframes rg-in-skew { from { opacity: 0; transform: translateX(-30px) skewX(-20deg); } }
+@keyframes rg-in-blur { from { opacity: 0; filter: blur(8px); } }
+@keyframes rg-in-bounce {
+  0% { opacity: 0; transform: translateY(-36px); }
+  55% { opacity: 1; transform: translateY(8px); }
+  75% { transform: translateY(-4px); }
+  90% { transform: translateY(2px); }
+  100% { transform: none; }
+}
+@keyframes rg-out-fade { to { opacity: 0; } }
+@keyframes rg-out-slide-up { to { opacity: 0; transform: translateY(-14px); } }
+@keyframes rg-out-slide-down { to { opacity: 0; transform: translateY(14px); } }
+@keyframes rg-out-slide-left { to { opacity: 0; transform: translateX(-32px); } }
+@keyframes rg-out-slide-right { to { opacity: 0; transform: translateX(32px); } }
+@keyframes rg-out-zoom { to { opacity: 0; transform: scale(0.6); } }
+@keyframes rg-out-flip-x { to { opacity: 0; transform: perspective(600px) rotateX(90deg); } }
+@keyframes rg-out-flip-y { to { opacity: 0; transform: perspective(600px) rotateY(-90deg); } }
+@keyframes rg-out-rotate { to { opacity: 0; transform: rotate(12deg) scale(0.85); } }
+@keyframes rg-out-skew { to { opacity: 0; transform: translateX(30px) skewX(20deg); } }
+@keyframes rg-out-blur { to { opacity: 0; filter: blur(8px); } }
+@keyframes rg-out-bounce {
+  25% { transform: translateY(6px); }
+  100% { opacity: 0; transform: translateY(-40px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.rg-grid__row--enter, .rg-grid__row--exit) { animation: none; }
+  :where(.rg-grid__scroll) { scroll-behavior: auto; }
+  :where(.rg-grid-popup) { animation: none; }
+  :where(.rg-grid__skeleton) { animation: none; }
+  :where(.rg-sort-arrow__icon) { transition: none !important; }
+}
+
+:where(.rg-grid__editor) {
+  width: 100%; box-sizing: border-box; padding: 5px 8px; font: inherit;
+  border: 2px solid var(--rg-primary, #4f46e5); border-radius: 6px;
+  background: var(--rg-input-bg, var(--rg-surface, #fff)); color: var(--rg-input-text, inherit);
+}
+:where(.rg-grid__editor:focus) { outline: none; }
+:where(.rg-grid__editor--invalid) { border-color: var(--rg-danger, #dc2626); background: var(--rg-invalid-bg, #fef2f2); }
+:where(.rg-grid__custom-editor) { display: flex; align-items: center; min-height: 30px; }
+:where(.rg-grid__checkbox-cell, .rg-grid__header-checkbox) { display: inline-flex; vertical-align: middle; }
+:where(.rg-grid__empty) { padding: 32px 12px; text-align: center; color: var(--rg-muted, #6b7280); }
+:where(.rg-grid__footer) {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  padding: 8px 12px; border-top: 1px solid var(--rg-border, #d1d5db);
+  background: var(--rg-footer-bg, var(--rg-bg-subtle, #f3f4f6)); color: var(--rg-footer-text, var(--rg-muted, #6b7280)); font-size: 13px;
+}
+/* After the base rule on purpose: same (zero) specificity, later wins. */
+:where(.rg-grid__footer--top) { border-top: 0; border-bottom: 1px solid var(--rg-border, #d1d5db); }
+:where(.rg-grid__pagination) { display: flex; align-items: center; gap: 8px; }
+:where(.rg-grid__page-size-label) { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
+:where(.rg-grid__page-size) {
+  padding: 3px 6px; font: inherit; border: 1px solid var(--rg-input-border, var(--rg-border, #d1d5db)); border-radius: 6px;
+  background: var(--rg-input-bg, var(--rg-surface, #fff)); color: var(--rg-input-text, inherit);
+}
+:where(.rg-grid__page-btn) {
+  min-width: 30px; padding: 3px 8px; font: inherit; cursor: pointer; color: var(--rg-input-text, var(--rg-text, #111827));
+  background: var(--rg-input-bg, var(--rg-surface, #fff)); border: 1px solid var(--rg-input-border, var(--rg-border, #d1d5db)); border-radius: 6px;
+}
+:where(.rg-grid__page-btn:hover:not(:disabled)) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-grid__page-btn:disabled) { opacity: 0.4; cursor: not-allowed; }
+
+/* ------------------------------------------------------------------------------------------
+   Calendar (the date picker used by date cells and date filters)
+   Colours come from the popup variables, the accent from --rg-primary, and the text on the
+   accent from --rg-on-primary. Everything here has zero specificity.
+------------------------------------------------------------------------------------------ */
+:where(.rg-cal) { width: 252px; user-select: none; font-size: 13px; }
+:where(.rg-cal__head) { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+:where(.rg-cal__title) { flex: 1; text-align: center; font-weight: 600; font-size: 14px; }
+:where(.rg-cal__nav) {
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 16px; line-height: 1;
+}
+:where(.rg-cal__nav:hover) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-cal__nav:focus-visible, .rg-cal__day:focus-visible, .rg-cal__link:focus-visible) { outline: 2px solid var(--rg-primary, #4f46e5); outline-offset: 1px; }
+:where(.rg-cal__grid) { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+:where(.rg-cal__dow) { text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--rg-muted, #6b7280); padding: 4px 0 6px; }
+:where(.rg-cal__day) {
+  position: relative; height: 32px; padding: 0; border: 0; background: transparent; color: inherit;
+  font: inherit; cursor: pointer; border-radius: 8px; font-variant-numeric: tabular-nums;
+}
+:where(.rg-cal__day:hover:not(:disabled)) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-cal__day--outside) { color: var(--rg-muted, #6b7280); opacity: 0.55; }
+:where(.rg-cal__day:disabled) { opacity: 0.25; cursor: not-allowed; }
+/* Today: a ring, so it still reads when it is also selected */
+:where(.rg-cal__day--today) { box-shadow: inset 0 0 0 1.5px var(--rg-primary, #4f46e5); font-weight: 600; }
+/* Days inside a range are a soft band; its ends and a single selected day are solid */
+:where(.rg-cal__day--in-range) { background: rgba(79, 70, 229, 0.14); border-radius: 0; }
+:where(.rg-cal__day--in-range:hover:not(:disabled)) { background: rgba(79, 70, 229, 0.24); }
+:where(.rg-cal__day--selected, .rg-cal__day--selected:hover:not(:disabled)) { background: var(--rg-primary, #4f46e5); color: var(--rg-on-primary, #fff); font-weight: 600; opacity: 1; }
+:where(.rg-cal__day--range-start) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+:where(.rg-cal__day--range-end) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+@supports (background: color-mix(in srgb, red 10%, transparent)) {
+  :where(.rg-cal__day--in-range) { background: color-mix(in srgb, var(--rg-primary, #4f46e5) 16%, transparent); }
+  :where(.rg-cal__day--in-range:hover:not(:disabled)) { background: color-mix(in srgb, var(--rg-primary, #4f46e5) 28%, transparent); }
+}
+:where(.rg-cal__foot) { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rg-popup-border, #e5e7eb); }
+:where(.rg-cal__link) { border: 0; background: transparent; color: var(--rg-primary, #4f46e5); font: inherit; font-weight: 600; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+:where(.rg-cal__link:hover:not(:disabled)) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-cal__link:disabled) { opacity: 0.4; cursor: not-allowed; }
+
+/* The text box that goes with the calendar (From / To in the filter, and the cell editor) */
+:where(.rg-date-editor) { position: relative; width: 100%; }
+:where(.rg-grid-popup .rg-cal) { margin-top: 2px; }
+:where(.rg-grid__filter-fields--stack) { flex-direction: column; }
+:where(.rg-grid__filter-date-row) { display: flex; gap: 8px; }
+:where(.rg-grid__filter-input--invalid) { border-color: var(--rg-danger, #dc2626); }
+
+
+/* ------------------------------------------------------------------------------------------
+   Sort arrow (sortIndicator="arrow"): turns smoothly when the sort direction changes
+------------------------------------------------------------------------------------------ */
+:where(.rg-grid__sort--custom) { opacity: 1; font-size: inherit; display: inline-flex; align-items: center; }
+:where(.rg-sort-arrow) { display: inline-flex; align-items: flex-start; line-height: 1; color: inherit; opacity: 0.4; transition: opacity 0.2s, color 0.2s; }
+:where(.rg-sort-arrow--active) { opacity: 1; color: var(--rg-sort-active, var(--rg-primary, #4f46e5)); }
+:where(.rg-sort-arrow__icon) { display: block; transition: transform var(--rg-sort-turn, 0.28s) cubic-bezier(0.4, 0, 0.2, 1); }
+:where(.rg-sort-arrow__order) { margin-left: 1px; font-size: 9px; font-weight: 700; }
+:where(.rg-grid__th--sortable:hover .rg-sort-arrow:not(.rg-sort-arrow--active)) { opacity: 0.7; }
+
+/* ------------------------------------------------------------------------------------------
+   Filter popup: the comparison drop-down on top of the text box
+------------------------------------------------------------------------------------------ */
+:where(.rg-grid__filter-stack) { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 200px; }
+:where(.rg-op) { position: relative; }
+:where(.rg-op__btn) {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; box-sizing: border-box;
+  padding: 7px 10px; font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer;
+  color: var(--rg-input-text, inherit); background: var(--rg-input-bg, #fff);
+  border: 1px solid var(--rg-input-border, var(--rg-border, #d1d5db)); border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+:where(.rg-op__btn:hover) { border-color: var(--rg-primary, #4f46e5); }
+:where(.rg-op__btn:focus-visible, .rg-op__btn[aria-expanded="true"]) { outline: none; border-color: var(--rg-primary, #4f46e5); box-shadow: 0 0 0 3px var(--rg-filter-glow, rgba(79, 70, 229, 0.22)); }
+:where(.rg-op__chevron) { flex: none; opacity: 0.6; transition: transform 0.18s; }
+:where(.rg-op__btn[aria-expanded="true"] .rg-op__chevron) { transform: rotate(180deg); }
+:where(.rg-op__list) {
+  position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none;
+  max-height: 260px; overflow: auto;
+  color: var(--rg-popup-text, #111827); background: var(--rg-popup-bg, #fff);
+  border: 1px solid var(--rg-popup-border, #d1d5db); border-radius: 8px; box-shadow: var(--rg-popup-shadow, 0 10px 30px rgba(15, 23, 42, 0.18));
+  animation: rg-pop-in 0.12s ease-out;
+}
+:where(.rg-op__option) {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; font-size: 13px; cursor: pointer; border-radius: 6px;
+}
+:where(.rg-op__option--active) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-op__option--selected) { font-weight: 600; color: var(--rg-primary, #4f46e5); }
+:where(.rg-op__check) { flex: none; }
+
+/* ------------------------------------------------------------------------------------------
+   Export menu
+------------------------------------------------------------------------------------------ */
+:where(.rg-grid__tool-btn .rg-export__chevron) { margin-left: 6px; opacity: 0.65; vertical-align: middle; }
+:where(.rg-export-popup) { padding: 6px; min-width: 230px; }
+:where(.rg-export) { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+:where(.rg-export__group) { display: flex; flex-direction: column; gap: 2px; }
+:where(.rg-export__group + .rg-export__group) { padding-top: 6px; border-top: 1px solid var(--rg-popup-border, #e5e7eb); }
+:where(.rg-export__title) { padding: 4px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.6; }
+:where(.rg-export__scope) { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+:where(.rg-export__scope:hover) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-export__scope--disabled) { opacity: 0.45; cursor: not-allowed; }
+:where(.rg-export__scope input) { margin: 0; accent-color: var(--rg-primary, #4f46e5); }
+:where(.rg-export__scope-label) { flex: 1; }
+:where(.rg-export__count) { font-size: 12px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+:where(.rg-export__format) {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  color: inherit; background: transparent; border: 0; border-radius: 6px;
+}
+:where(.rg-export__format:hover:not(:disabled)) { background: var(--rg-btn-hover, #e5e7eb); }
+:where(.rg-export__format:focus-visible) { outline: 2px solid var(--rg-primary, #4f46e5); outline-offset: -2px; }
+:where(.rg-export__format:disabled) { opacity: 0.55; cursor: progress; }
+:where(.rg-export__ext) { font-size: 12px; opacity: 0.6; }
+
+/* A custom empty-state component brings its own layout */
+:where(.rg-grid__empty--custom) { padding: 16px 12px; }

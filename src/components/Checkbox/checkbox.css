@@ -1,0 +1,57 @@
+/*
+  Zero-specificity rules (wrapped in :where), so Tailwind utilities or any single class you pass win.
+  Every colour and size reads a CSS variable with a fallback, so you can also theme it from any
+  parent element:  .my-grid { --rg-checkbox-color: #16a34a; --rg-checkbox-size: 24px; }
+
+  Variables: --rg-checkbox-size (17px), --rg-checkbox-border-width (1px), --rg-checkbox-radius (0),
+             --rg-checkbox-color (checked colour), --rg-checkbox-border (border colour),
+             --rg-checkbox-bg, --rg-checkbox-tick (tick / character colour)
+*/
+:where(.rg-checkbox) {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: inherit; line-height: 1; vertical-align: middle;
+}
+:where(.rg-checkbox--disabled) { cursor: not-allowed; opacity: 0.55; }
+:where(.rg-checkbox__control) {
+  box-sizing: border-box; flex: none; margin: 0; cursor: inherit;
+  width: var(--rg-checkbox-size, 17px); height: var(--rg-checkbox-size, 17px);
+}
+:where(.rg-checkbox__control:disabled) { cursor: not-allowed; }
+:where(.rg-checkbox__control:focus-visible) { outline: 2px solid var(--rg-checkbox-color, #4f46e5); outline-offset: 2px; }
+
+/* "button" and "tick": a <button> drawn as a box */
+:where(.rg-checkbox--button .rg-checkbox__control, .rg-checkbox--tick .rg-checkbox__control) {
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  border: var(--rg-checkbox-border-width, 1px) solid var(--rg-checkbox-border, #9ca3af); border-radius: var(--rg-checkbox-radius, 0px);
+  background: var(--rg-checkbox-bg, #fff); color: var(--rg-checkbox-tick, #fff);
+  transition: background 0.12s, border-color 0.12s;
+}
+:where(.rg-checkbox--button .rg-checkbox__control[aria-checked="true"], .rg-checkbox--button .rg-checkbox__control[aria-checked="mixed"]) {
+  border-color: var(--rg-checkbox-color, #4f46e5);
+}
+:where(.rg-checkbox--tick .rg-checkbox__control[aria-checked="true"], .rg-checkbox--tick .rg-checkbox__control[aria-checked="mixed"]) {
+  background: var(--rg-checkbox-color, #4f46e5); border-color: var(--rg-checkbox-color, #4f46e5);
+}
+
+/* The span inside: hidden when unchecked, shown when checked or mixed */
+:where(.rg-checkbox__indicator) { display: block; line-height: 1; text-align: center; visibility: hidden; }
+:where(.rg-checkbox__indicator[data-state="checked"], .rg-checkbox__indicator[data-state="indeterminate"]) { visibility: visible; }
+:where(.rg-checkbox--button .rg-checkbox__indicator) {
+  width: 55%; height: 55%; border-radius: calc(var(--rg-checkbox-radius, 0px) / 2); /* the inner square is rounded less than the box */
+  background: var(--rg-checkbox-color, #4f46e5);
+}
+:where(.rg-checkbox--tick .rg-checkbox__indicator) { width: 80%; height: 80%; }
+/* Mixed state of the "button" variant: the inner square becomes a bar. (Later rule wins at equal specificity.) */
+:where(.rg-checkbox--button .rg-checkbox__indicator[data-state="indeterminate"]) { height: 16%; border-radius: 1px; }
+/* Custom indicator content: drop the default fill and sizing, it is yours to style */
+:where(.rg-checkbox__indicator--custom) { width: auto; height: auto; background: none; }
+
+/* A custom character (indicator="★"): sized to the box, coloured like a tick */
+:where(.rg-checkbox__indicator--custom) { font-size: calc(var(--rg-checkbox-size, 17px) * 0.7); font-weight: 700; }
+:where(.rg-checkbox--button .rg-checkbox__indicator--custom) { color: var(--rg-checkbox-color, #4f46e5); }
+:where(.rg-checkbox--tick .rg-checkbox__indicator--custom) { color: var(--rg-checkbox-tick, #fff); }
+
+/* "native" */
+:where(.rg-checkbox--native .rg-checkbox__control) { accent-color: var(--rg-checkbox-color, #4f46e5); }
+
+:where(.rg-checkbox__label) { font-size: 14px; }
