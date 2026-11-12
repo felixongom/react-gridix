@@ -44,9 +44,10 @@ A React `DataGrid` with row selection, server-side mode, typed per-column filter
 Everything is written in TypeScript, ships its own type definitions, and uses plain CSS (no CSS-in-JS runtime). The grid is 100% of its container's width by default. There is deliberately **no column reordering**.
 
 Demo Display
-![Drag Racing](./images/Capture1.PNG)
-![Drag Racing](./images/Capture1.PNG)
-![Drag Racing](./images/Capture.PNG)
+![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Capture1.PNG)
+![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Capture.PNG)
+![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/data-smaple-ui.PNG)
+![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Tailwind.PNG)
 
 ---
 

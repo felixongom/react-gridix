@@ -9,6 +9,7 @@
   "types": "./dist/index.d.ts",
   "license": "MIT",
   "keywords": ["table", "react-table", "react-grid", "tabular-display"],
+  "repository": { "type": "git", "url": "git+https://github.com/felixongom/react-gridix.git" },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
