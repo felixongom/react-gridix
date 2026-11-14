@@ -1,4 +1,4 @@
-# react-gridix Documentation
+# React-gridix
 
 A React `DataGrid` with row selection, server-side mode, typed per-column filters, date columns, in-cell editing, resizing and pinning, virtualization, export to CSV / Excel / JSON / PDF, 12 row animations, filter comparisons and 8 themes, plus the `Checkbox` it uses.
 
@@ -47,7 +47,7 @@ Demo Display
 ![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Capture1.PNG)
 ![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Capture.PNG)
 ![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/data-smaple-ui.PNG)
-![Drag Racing](/images/Tailwind.PNG)
+![Drag Racing](https://raw.githubusercontent.com/felixongom/react-gridix/refs/heads/main/images/Tailwind.PNG)
 
 ---
 
@@ -128,7 +128,7 @@ import logo from "./logo.png";
 ``
 
 Without `libraries`, or if an import fails, a PDF export reports an error that says what to install (see `onExportError`) and everything else keeps working.
-
+```
 ---
 
 ## 3. Quick start
@@ -534,6 +534,36 @@ const columns: ColumnDef<Employee>[] = [
   { field: "hired", headerName: "Hired", type: "date", sortable: true, filterable: true },
 ];
 ```
+```tsx
+const columns: ColumnDef<User>[] = [
+  // all eight comparisons
+  { field: "name", headerName: "Name", filterable: true, filterOperators: true },
+
+  // only some of them, with a different one selected first
+  {
+    field: "email",
+    headerName: "Email",
+    filterable: true,
+    filterOperators: ["contains", "startsWith", "endsWith", "equals"],
+    filterOperator: "startsWith",
+  },
+
+  // no filterOperators: a plain box that always means "contains"
+  { field: "city", headerName: "City", filterable: true },
+];
+```
+##### summary
+| Value | Label shown |
+| --- | --- |
+| `"contains"` | Contains |
+| `"notContains"` | Does not contain |
+| `"equals"` | Equals |
+| `"notEquals"` | Not equal |
+| `"startsWith"` | Starts with |
+| `"notStartsWith"` | Does not start with |
+| `"endsWith"` | Ends with |
+| `"notEndsWith"` | Does not end with | 
+
 
 | Option | Type | Description |
 | --- | --- | --- |
@@ -578,6 +608,7 @@ const columns: ColumnDef<Employee>[] = [
 | `cellClassName` / `cellStyle` | `string \| (params) => string` / `CSSProperties \| (params) => CSSProperties` | Body cells only |
 | `checkbox` | `ColumnCheckboxOptions` | Look of the checkbox in a `type: "boolean"` column: `variant`, `indicator`, `className`, `style`, `classNames`, `styles` |
 | `headerCheckbox` | `boolean` | On a `type: "boolean"` column, draws a select-all checkbox in the header. See [Select-all header checkbox](#select-all-header-checkbox) |
+
 
 #### Row numbers (sequence column)
 
@@ -1482,6 +1513,50 @@ Other slots work the same way: `root`, `toolbar`, `search`, `table`, `thead`, `h
 #### Width
 
 The grid is `width: 100%` of its container by default (it never overflows it: `max-width: 100%; min-width: 0`). To make it narrower, give it a width through `className` (`max-w-3xl`) or `style` (`{ maxWidth: 900 }`).
+## `overflow` column option
+
+Controls what happens to text that doesn't fit the column, in both the header and the cells.
+
+| Value | Behavior | Example (width 60) |
+|---|---|---|
+| `"wrap"` | Breaks the text onto new lines, even inside a word | `Alexa` / `nder` |
+| `"ellipsis"` | Cuts the text and shows `...` | `Alexa...` |
+| `"clip"` | Cuts the text, no dots | `Alexa` |
+
+**Default** (when `overflow` is not set):
+
+- Column has a `width`: `"wrap"`
+- Numeric `width` under 40: `"clip"`
+- No `width`: the grid's normal behavior
+
+### Example
+
+```tsx
+const columns: ColumnDef<Person>[] = [
+  { field: "color", header: "",      width: 6 },                          // thin strip, "clip" by default
+  { field: "id",    header: "ID",    width: 50 },                         // "wrap" by default
+  { field: "name",  header: "Name",  width: 120, overflow: "ellipsis" },  // "Alexander Ha..."
+  { field: "notes", header: "Notes", width: 200, overflow: "wrap" },      // new lines
+  { field: "code",  header: "Code",  width: 80,  overflow: "clip" },      // cut off
+];
+```
+
+### Notes
+
+- Widths under 40 also remove the column's side padding, so `width: 1` really is 1px.
+- `"wrap"` in a very narrow column puts one character per line and makes rows tall. Use `"ellipsis"` or `"clip"` there.
+- To show the full text on hover, add a tooltip in a `cellRenderer`:
+
+```tsx
+{
+  field: "name",
+  header: "Name",
+  width: 120,
+  overflow: "ellipsis",
+  cellRenderer: ({ value }) => <span title={String(value)}>{String(value)}</span>,
+}
+```
+
 
 #### Plain CSS class reference
 
@@ -2654,7 +2729,136 @@ function NothingHere({ reason, clearAll, search }: EmptyStateProps<User>) {
 - When rows are removed with an exit animation, the component appears once the last row has left.
 - Keep using `emptyMessage` for a plain sentence. `emptyComponent` wins when both are set.
 
-### 6.27 Known limitations
+### 6.27 Column widths
+
+`width` takes a number (pixels) or any CSS length. `minWidth` and `maxWidth` limit the column.
+
+```tsx
+const columns = [
+  { field: "id",    header: "ID",    width: 70 },        // 70 px
+  { field: "name",  header: "Name",  width: "30%" },     // a share of the grid
+  { field: "email", header: "Email", width: "16rem" },   // any CSS length
+  { field: "notes", header: "Notes", minWidth: 200 },    // no width: takes the space that is left
+];
+```
+
+- When any column has a `width`, the grid uses a fixed table layout, so the browser takes your widths literally.
+- If **every** column has a numeric width, the table is exactly as wide as their sum (it does not stretch).
+- Columns without a `width` share the remaining space.
+- Dragging a column border still works and overrides the starting width (limited by `minWidth` / `maxWidth`).
+
+### 6.28 Sticky toolbar and header, and scroll bars
+
+**With an inner scroll box** (`maxHeight`) the header already stays at the top and the toolbar and footer stay outside the scrolling part:
+
+```tsx
+<DataGrid rows={rows} columns={columns} maxHeight="60vh" />
+```
+
+**While the whole page scrolls** (optional, off by default):
+
+```tsx
+<DataGrid rows={rows} columns={columns} stickyToolbar stickyHeader />
+
+// Under a fixed top bar of your own that is 64px tall
+<DataGrid rows={rows} columns={columns} stickyToolbar stickyHeader stickyOffset={64} />
+
+// Only the header
+<DataGrid rows={rows} columns={columns} stickyHeader stickyOffset="4rem" />
+```
+
+The header sits right under the toolbar when both are sticky. In this mode the grid has no scroll box of its own, so a table wider than the page overflows: give the columns widths that fit (see 6.28). It is ignored when `maxHeight` or `virtualize` is set, because those already scroll inside the grid.
+
+**Scroll bars inside the grid** are thin by default. Use `scrollbar` to change them:
+
+```tsx
+<DataGrid scrollbar="thin" />     // default: slim bar
+<DataGrid scrollbar="auto" />     // the browser's normal bar
+<DataGrid scrollbar="hidden" />   // no bar, scrolling still works
+<DataGrid scrollbar="custom" />   // no style from the grid: your CSS applies
+```
+
+Colours of the thin bar come from CSS variables:
+
+```css
+.my-grid {
+  --rg-scrollbar-thumb: #6366f1;     /* the moving part */
+  --rg-scrollbar-track: #eef2ff;     /* the rail */
+  --rg-scrollbar-width: auto;        /* thin | auto | none */
+}
+```
+
+Full control (size, rounded ends, hover colour) with `scrollbar="custom"`:
+
+```tsx
+<DataGrid scrollbar="custom" classNames={{ scroll: "my-scroll" }} />
+```
+
+```css
+.my-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.my-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; }
+.my-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+.my-scroll { scrollbar-width: thin; scrollbar-color: #94a3b8 transparent; } /* Firefox */
+```
+
+The list of options in a `filterType: "select"` popup scrolls without showing a scroll bar.
+
+
+### 6.29 Very narrow columns and text overflow
+
+Any `width` from 1 upward is honored. Widths under 40 also drop the side padding of that column, so `width: 1` really is 1px wide. Use `overflow` to choose what happens to text that does not fit (header and cells):
+
+```tsx
+const columns = [
+  { field: "color", header: "",     width: 6 },                          // a thin strip (cut off: "clip" is the default under 40)
+  { field: "id",    header: "ID",   width: 50 },                         // wraps onto new lines by default when a width is set
+  { field: "name",  header: "Name", width: 120, overflow: "ellipsis" },  // "Alexander Ha..."
+  { field: "notes", header: "Notes", width: 200, overflow: "wrap" },     // breaks lines, even inside a word
+  { field: "code",  header: "Code", width: 80,  overflow: "clip" },      // cut off without dots
+];
+```
+
+Tip: show the full text in a tooltip with a cell renderer, `cellRenderer: ({ value }) => <span title={String(value)}>{String(value)}</span>`.
+
+### 6.30 Skeleton on the first render (refresh, server rendering)
+
+In server-side mode (`serverSide` with `onQueryChange`) the grid starts in the loading state, so the skeleton is in the server-rendered HTML and in the first paint after a refresh. If you control loading yourself, start with `true` so the first render already shows it:
+
+```tsx
+// Fetching in your own code: start as loading, not false
+const [loading, setLoading] = useState(true);
+useEffect(() => { fetchRows().then(setRows).finally(() => setLoading(false)); }, []);
+
+<DataGrid rows={rows} columns={columns} loading={loading} loadingRows={8} />
+```
+
+### 6.31 Skeleton per column
+
+Give a column its own placeholder with `skeleton`. It replaces the default bar (and the grid's `skeletonRow`) for that column; the other columns keep the default bar.
+
+```tsx
+import type { ColumnDef, SkeletonCellProps } from "react-gridix";
+
+// A round avatar placeholder with a text line beside it
+const UserSkeleton = ({ rowIndex }: SkeletonCellProps) => (
+  <div className="flex items-center gap-2 animate-pulse">
+    <span className="h-8 w-8 rounded-full bg-gray-200" />
+    <span className="h-3 rounded bg-gray-200" style={{ width: 60 + (rowIndex % 3) * 20 }} />
+  </div>
+);
+
+const columns: ColumnDef<User>[] = [
+  { field: "name",   header: "Name",   skeleton: UserSkeleton },   // custom placeholder
+  { field: "email",  header: "Email" },                            // default bar
+  { field: "status", header: "Status", skeleton: () => <span className="inline-block h-5 w-14 rounded-full bg-gray-200" /> },
+];
+
+<DataGrid rows={rows} columns={columns} loading={loading} loadingRows={8} />
+```
+
+If any column has a `skeleton`, the grid's whole-row `skeletonRow` is not used (it draws one wide cell, which cannot be mixed with per-column cells).
+
+### 6.32 Known limitations
 
 Not included:
 
@@ -2718,7 +2922,7 @@ The Styling demo loads Tailwind from its CDN, so it needs an internet connection
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 | Problem | Cause and fix |
 | --- | --- |

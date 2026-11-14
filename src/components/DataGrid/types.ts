@@ -202,6 +202,14 @@ export interface SkeletonRowProps<T = Record<string, any>> {
   columns: ColumnDef<T>[];
 }
 
+/** Props received by a column's `skeleton` component, which draws the placeholder of ONE cell while loading. */
+export interface SkeletonCellProps<T = Record<string, any>> {
+  /** Position of this placeholder row (0, 1, 2 ...). */
+  rowIndex: number;
+  /** The column this placeholder belongs to. */
+  column: ColumnDef<T>;
+}
+
 /** Options for the checkbox drawn in a `type: "boolean"` column. */
 export interface ColumnCheckboxOptions {
   /** Overrides the grid's `checkboxVariant` for this column. */
@@ -251,9 +259,22 @@ export interface ColumnDef<T = Record<string, any>> {
   sequenceStart?: number;
   /** Only for `type: "sequence"`: start again at `sequenceStart` on every page. Default false (the count continues: 11, 12, ...). */
   sequenceRestartEachPage?: boolean;
+  /** Column width: a number (pixels) or any CSS length such as "20%" or "12rem". Columns without one share the remaining space. */
   width?: number | string;
+  /**
+   * The placeholder drawn in this column's cells while the grid is loading. It replaces the default bar
+   * and the grid's `skeletonRow` for this column. Columns without one keep the default bar.
+   * (If any column has a `skeleton`, the grid's whole-row `skeletonRow` is not used.)
+   */
+  skeleton?: ComponentType<SkeletonCellProps<T>>;
+  /**
+   * What happens to text that does not fit the column (header and cells):
+   * "wrap" breaks it onto new lines (even in the middle of a word), "ellipsis" cuts it and shows "...",
+   * "clip" just cuts it. Default: "wrap" for a column that has a `width` ("clip" when the width is under 40), otherwise the grid's normal behaviour.
+   */
+  overflow?: "wrap" | "ellipsis" | "clip";
   minWidth?: number | string;
-  /** Largest width in pixels when the user resizes the column. */
+  /** Largest width in pixels (also limits dragging the column wider). */
   maxWidth?: number;
   align?: "left" | "center" | "right";
 
@@ -844,6 +865,12 @@ export interface DataGridProps<T = Record<string, any>> {
    * `{ column, direction, priority }`. A column can override it with its own `sortIndicator`.
    */
   sortIndicator?: SortIndicatorSetting<T>;
+  /**
+   * Turn the default ▲ and your own indicator smoothly (half a turn) when the sort direction changes.
+   * Default true. Does not affect `sortIndicator="arrow"`, which already turns itself. Set false if your
+   * own component animates by itself, so it is not turned twice.
+   */
+  sortIndicatorRotate?: boolean;
   /** Alternate row shading. Default false. */
   striped?: boolean;
   /** Two colours for the alternating rows, for example `["#ffffff", "#f1f5f9"]`. Implies `striped`. */
@@ -885,6 +912,26 @@ export interface DataGridProps<T = Record<string, any>> {
   theme?: GridTheme | (string & {});
   /** Makes the body scroll with a sticky header, e.g. 400 or "60vh". */
   maxHeight?: number | string;
+  /**
+   * Keep the toolbar at the top of the browser window while the PAGE scrolls past a tall grid.
+   * Optional (default false). Not needed with `maxHeight` (the toolbar already stays put there).
+   */
+  stickyToolbar?: boolean;
+  /** Keep the column headers at the top of the browser window while the PAGE scrolls (under the toolbar when it is sticky too). Default false. */
+  stickyHeader?: boolean;
+  /**
+   * Space kept free above the sticky parts, for a fixed bar of your own, e.g. 64 or "4rem". Default 0.
+   * Page-scroll sticky mode lets the table grow to its full height, so a table wider than the page
+   * overflows instead of getting its own horizontal scroll bar; give columns widths that fit.
+   */
+  stickyOffset?: number | string;
+  /**
+   * The scroll bars inside the grid. "thin" (default) is a slim bar, "auto" the browser's normal one,
+   * "hidden" shows none (scrolling still works) and "custom" adds no scroll bar style at all so
+   * your own CSS (`::-webkit-scrollbar`, ...) on `classNames.scroll` applies. The colours of "thin"
+   * come from `--rg-scrollbar-thumb` and `--rg-scrollbar-track`.
+   */
+  scrollbar?: "thin" | "auto" | "hidden" | "custom";
 
   /** Tailwind or any CSS classes for the root element. */
   className?: string;

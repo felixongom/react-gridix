@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import type { SortDirection } from "./types";
 import { cx } from "./utils";
 
@@ -57,6 +57,22 @@ export function SortArrow({ direction, size = 14, priority, className, style }: 
         <path d="M3.5 7.5 8 3l4.5 4.5" />
       </svg>
       {direction && priority !== undefined && <sup className="rg-sort-arrow__order">{priority}</sup>}
+    </span>
+  );
+}
+
+/**
+ * Turns whatever it wraps (the default ▲ or your own indicator) smoothly when the sort direction changes.
+ * Like `SortArrow`, it only ever adds to the rotation, so the turn always goes the same way.
+ * Not used for `sortIndicator="arrow"`, which already turns itself.
+ */
+export function SortTurn({ direction, children }: { direction: SortDirection | null; children: ReactNode }) {
+  const turn = useRef(0);
+  const delta = (((ANGLE[direction ?? "none"] - turn.current) % 360) + 360) % 360;
+  turn.current += delta;
+  return (
+    <span className="rg-sort-turn" style={{ transform: `rotate(${turn.current}deg)` }}>
+      {children}
     </span>
   );
 }

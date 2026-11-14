@@ -92,6 +92,9 @@
 :where(.rg-grid__filter-fields) { display: flex; flex: 1; gap: 8px; min-width: 0; }
 :where(.rg-grid__filter-field) { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; opacity: 0.9; }
 :where(.rg-grid__filter-options) { flex-direction: column; gap: 6px; max-height: 220px; overflow: auto; padding-right: 4px; }
+/* The list in the select-filter popup still scrolls (wheel, touch, keys) but shows no scroll bar */
+:where(.rg-grid__filter-options) { scrollbar-width: none; -ms-overflow-style: none; }
+:where(.rg-grid__filter-options)::-webkit-scrollbar { display: none; }
 :where(.rg-grid__filter-empty) { font-size: 13px; opacity: 0.7; }
 :where(.rg-grid-popup input[type="date"], .rg-grid__editor[type="date"]) { font-family: inherit; }
 @keyframes rg-pop-in { from { opacity: 0; transform: translateY(-4px); } }
@@ -369,3 +372,40 @@
 
 /* A custom empty-state component brings its own layout */
 :where(.rg-grid__empty--custom) { padding: 16px 12px; }
+
+/* Smooth half-turn of the default / custom sort indicator (same speed variable as the arrow) */
+:where(.rg-sort-turn) { display: inline-block; transition: transform var(--rg-sort-turn, 0.28s) cubic-bezier(0.4, 0, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { :where(.rg-sort-turn) { transition: none; } }
+
+/* ---- Scroll bars inside the grid -------------------------------------------------------------
+   "thin" (default) uses the standard properties, so the colours come from variables:
+     --rg-scrollbar-thumb, --rg-scrollbar-track, --rg-scrollbar-width (thin | auto | none)
+   `scrollbar="custom"` adds nothing, so your own ::-webkit-scrollbar CSS applies. */
+:where(.rg-grid__scroll--thin) {
+  scrollbar-width: var(--rg-scrollbar-width, thin);
+  scrollbar-color: var(--rg-scrollbar-thumb, rgba(120, 130, 150, 0.55)) var(--rg-scrollbar-track, transparent);
+}
+:where(.rg-grid__scroll--hidden) { scrollbar-width: none; }
+:where(.rg-grid__scroll--hidden)::-webkit-scrollbar { display: none; }
+
+/* ---- Optional sticky toolbar / header while the page scrolls (stickyToolbar, stickyHeader) ----
+   Sticky only works when no ancestor clips, so the grid stops clipping and its scroll box stops scrolling. */
+:where(.rg-grid--sticky-page) { overflow: visible; }
+:where(.rg-grid--sticky-page .rg-grid__scroll) { overflow: visible; }
+:where(.rg-grid--sticky-toolbar .rg-grid__toolbar) {
+  position: sticky; top: var(--rg-sticky-offset, 0px); z-index: 4;
+  background: var(--rg-toolbar-bg, var(--rg-grid-bg, var(--rg-surface, #fff)));
+  border-top-left-radius: inherit; border-top-right-radius: inherit;
+}
+:where(.rg-grid--sticky-header .rg-grid__thead) { top: calc(var(--rg-sticky-offset, 0px) + var(--rg-sticky-toolbar-h, 0px)); }
+
+/* ---- What happens to text that does not fit a column (ColumnDef.overflow) ---- */
+:where(.rg-grid__cell--wrap) { white-space: normal; overflow-wrap: anywhere; }
+:where(.rg-grid__cell--ellipsis, .rg-grid__cell--clip) { white-space: nowrap; overflow: hidden; }
+:where(.rg-grid__cell--ellipsis) { text-overflow: ellipsis; }
+/* Header: the label gets the dots, the icons (filter, sort) keep their size */
+:where(.rg-grid__th--sortable, .rg-grid__th) .rg-grid__th-label { min-width: 0; }
+:where(.rg-grid__th.rg-grid__cell--wrap .rg-grid__th-content) { flex-wrap: wrap; max-width: 100%; }
+:where(.rg-grid__th.rg-grid__cell--ellipsis .rg-grid__th-content, .rg-grid__th.rg-grid__cell--clip .rg-grid__th-content) { display: flex; max-width: 100%; min-width: 0; }
+:where(.rg-grid__th.rg-grid__cell--ellipsis .rg-grid__th-label) { overflow: hidden; text-overflow: ellipsis; }
+:where(.rg-grid__th.rg-grid__cell--clip .rg-grid__th-label) { overflow: hidden; }

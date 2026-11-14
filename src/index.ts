@@ -43,6 +43,7 @@ export type {
   PaginationPosition,
   RowSelection,
   SkeletonRowProps,
+  SkeletonCellProps,
   SortDirection,
   SortModel,
 } from "./components/DataGrid/types";

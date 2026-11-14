@@ -61,7 +61,7 @@ const columns: ColumnDef<Employee>[] = [
 let nextId = 1000;
 
 export function FeaturesDemo() {
-  const [rows, setRows] = useState<Employee[]>(() => makeEmployees(80));
+  const [rows, setRows] = useState<Employee[]>(() => makeEmployees(8));
   const [enter, setEnter] = useState<RowAnimationName>("slide-up");
   const [exit, setExit] = useState<RowAnimationName>("fade");
   const [indicator, setIndicator] = useState<"default" | "arrow" | "label">("arrow");

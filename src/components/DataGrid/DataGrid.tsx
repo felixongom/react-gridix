@@ -17,7 +17,7 @@ import { downloadBlob, downloadCsv, toCsv } from "./csv";
 import { ExportMenu, exportButtonLabel, type ExportScopeChoice, type MenuScope } from "./ExportMenu";
 import { buildPdf } from "./pdf";
 import { readGridStyle } from "./gridStyle";
-import { SortArrow } from "./SortArrow";
+import { SortArrow, SortTurn } from "./SortArrow";
 import { buildXlsx, type XlsxColumn, type XlsxValue } from "./xlsx";
 import { formatDate, fromISODate, parseISODate, toISODate } from "./dates";
 import { buildOptions, isFilterActive, matchesFilter, resolveFilterKind } from "./filters";
@@ -201,6 +201,7 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   emptyMessage = "No rows to show",
   emptyComponent,
   sortIndicator = "default",
+  sortIndicatorRotate = true,
   striped = false,
   stripeColors,
   checkboxVariant = "native",
@@ -212,6 +213,10 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   rowExitAnimationClassName,
   theme,
   maxHeight,
+  stickyToolbar = false,
+  stickyHeader = false,
+  stickyOffset = 0,
+  scrollbar = "thin",
   className,
   style,
   classNames = {},
@@ -419,7 +424,9 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   const onQueryRef = useRef(onQueryChange);
   onQueryRef.current = onQueryChange;
 
-  const [pending, setPending] = useState(false);
+  // Server-side mode starts as "loading": the first query only runs in an effect (browser only), so without
+  // this the server-rendered HTML and the first paint after a refresh would show an empty grid instead of the skeleton.
+  const [pending, setPending] = useState(() => serverSide && !!onQueryChange);
   const [failed, setFailed] = useState(false);
   const requestId = useRef(0);
 
@@ -948,9 +955,34 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   // Resizing and pinning
   // ==========================================================================================
 
+  // Height of the toolbar, so a sticky header can sit right under a sticky toolbar
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarH, setToolbarH] = useState(0);
+  useIsoLayoutEffect(() => {
+    const el = toolbarRef.current;
+    if (!el || !stickyToolbar) return;
+    const measure = () => setToolbarH(el.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [stickyToolbar]);
+
   const resizing = Object.keys(widths).length > 0;
   const widthOf = (c: ColumnDef<T>) => widths[c.field] ?? (typeof c.width === "number" ? c.width : DEFAULT_COL_W);
   const minWidthOf = (c: ColumnDef<T>) => Math.max(40, typeof c.minWidth === "number" ? c.minWidth : 60);
+
+  /** How overflowing text is handled in this column (see ColumnDef.overflow). */
+  const overflowOf = (c: ColumnDef<T>) =>
+    c.overflow ?? (typeof c.width === "number" && c.width < 40 ? "clip" : c.width !== undefined && c.width !== "" ? "wrap" : undefined);
+  /** Very narrow numeric widths (under 40px) drop the side padding so the width can really be that small. */
+  const narrowPad = (c: ColumnDef<T>) => (typeof c.width === "number" && c.width < 40 ? { paddingLeft: 0, paddingRight: 0 } : null);
+
+  // Custom widths (before any dragging): the table uses a fixed layout so the browser takes the widths
+  // literally instead of stretching columns to fit their content. Columns without a width share what is left.
+  const hasCustomWidth = cols.some((c) => c.width !== undefined && c.width !== null && c.width !== "");
+  const allNumericWidths = cols.length > 0 && cols.every((c) => typeof c.width === "number");
 
   /** Drag the right edge of a header cell. Uses pointer capture so the drag survives leaving the handle. */
   const startResize = (e: ReactPointerEvent<HTMLElement>, c: ColumnDef<T>) => {
@@ -1471,29 +1503,37 @@ export function DataGrid<T extends AnyRow = AnyRow>({
    * arrow, and a component is drawn with `{ column, direction, priority }`. A column's own setting wins.
    */
   const renderSortIndicator = (c: ColumnDef<T>, direction: "asc" | "desc" | null, priority: number | undefined) => {
-    const setting = c.sortIndicator ?? sortIndicator;
+    // The custom indicator only appears once the column is sorted; before that the default ↕ stays visible
+    const setting = direction === null ? "default" : (c.sortIndicator ?? sortIndicator);
     const custom = setting !== "default";
+    // The default and custom indicators turn smoothly (unless switched off); "arrow" turns itself
+    const turns = sortIndicatorRotate && setting !== "arrow";
+    const body =
+      setting === "arrow" ? (
+        <SortArrow direction={direction} priority={priority} />
+      ) : setting !== "default" ? (
+        createElement(setting, { column: c, direction, priority })
+      ) : // Default: ↕ before sorting, then one ▲ that turns into ▼ (or stays ▲ when not turning)
+      turns ? (
+        direction ? "▲" : "↕"
+      ) : (
+        direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕"
+      );
     return (
       <span {...slot("sortIndicator", cx("rg-grid__sort", custom && "rg-grid__sort--custom"))} aria-hidden="true" data-direction={direction ?? "none"}>
-        {setting === "arrow" ? (
-          <SortArrow direction={direction} priority={priority} />
-        ) : setting !== "default" ? (
-          createElement(setting, { column: c, direction, priority })
-        ) : (
-          <>
-            {direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕"}
-            {/* With several sorted columns, show the priority of each */}
-            {priority !== undefined && <sup className="rg-grid__sort-order">{priority}</sup>}
-          </>
-        )}
+        {turns ? <SortTurn direction={direction}>{body}</SortTurn> : body}
+        {/* With several sorted columns, show the priority of each (outside the turning part) */}
+        {setting === "default" && priority !== undefined && <sup className="rg-grid__sort-order">{priority}</sup>}
       </span>
     );
   };
 
   /** One placeholder row shown while loading. */
+  // A column with its own `skeleton` switches the placeholder rows to one cell per column
+  const hasColumnSkeleton = cols.some((c) => c.skeleton);
   const renderSkeletonRow = (i: number) => (
     <tr key={`sk${i}`} className="rg-grid__tr rg-grid__skeleton-row" aria-hidden="true" style={virtualize ? { height: rowHeight } : undefined}>
-      {skeletonRow ? (
+      {skeletonRow && !hasColumnSkeleton ? (
         // A custom component draws the whole row content inside one wide cell
         <td colSpan={colSpan} className="rg-grid__td rg-grid__skeleton-cell">
           {createElement(skeletonRow, { rowIndex: i, columns: cols })}
@@ -1507,8 +1547,13 @@ export function DataGrid<T extends AnyRow = AnyRow>({
           )}
           {cols.map((c, j) => (
             <td key={c.field} className="rg-grid__td" style={{ textAlign: c.align }}>
-              {/* Vary the bar widths a little so the placeholder does not look like a grid of identical stripes */}
-              <span {...slot("skeleton", "rg-grid__skeleton")} style={{ ...styles.skeleton, width: `${55 + ((i * 7 + j * 13) % 35)}%` }} />
+              {c.skeleton ? (
+                // The column's own placeholder
+                createElement(c.skeleton, { rowIndex: i, column: c })
+              ) : (
+                /* Vary the bar widths a little so the placeholder does not look like a grid of identical stripes */
+                <span {...slot("skeleton", "rg-grid__skeleton")} style={{ ...styles.skeleton, width: `${55 + ((i * 7 + j * 13) % 35)}%` }} />
+              )}
             </td>
           ))}
         </>
@@ -1621,12 +1666,13 @@ export function DataGrid<T extends AnyRow = AnyRow>({
                 "rg-grid__td",
                 canEdit && "rg-grid__td--editable",
                 isEditing && "rg-grid__td--editing",
+                overflowOf(c) && !isEditing && `rg-grid__cell--${overflowOf(c)}`,
                 pin.className,
                 classNames.cell,
                 c.className,
                 cellClass
               )}
-              style={{ textAlign: c.align, ...styles.cell, ...c.style, ...cellStyle, ...pin.style }}
+              style={{ textAlign: c.align, ...narrowPad(c), ...styles.cell, ...c.style, ...cellStyle, ...pin.style }}
             >
               {isEditing && editing && !leaving
                 ? renderEditor(entry, c, editing)
@@ -1647,16 +1693,35 @@ export function DataGrid<T extends AnyRow = AnyRow>({
 
   const skeletonCount = loadingRows ?? (pagination ? Math.min(pageSize, 20) : 5);
 
+  // Page-scroll sticky mode: only when the grid has no scroll box of its own (maxHeight / virtualize)
+  const pageSticky = (stickyToolbar || stickyHeader) && maxHeight === undefined && !virtualize;
+  const offsetCss = typeof stickyOffset === "number" ? `${stickyOffset}px` : stickyOffset;
+  const stickyVars = pageSticky
+    ? ({
+        "--rg-sticky-offset": offsetCss,
+        // The header sits just under the toolbar when the toolbar is sticky too
+        "--rg-sticky-toolbar-h": stickyToolbar ? `${toolbarH}px` : "0px",
+      } as CSSProperties)
+    : null;
+
   return (
     <div
       ref={rootRef}
-      className={cx("rg-grid", virtualize && "rg-grid--virtual", classNames.root, className)}
-      style={{ ...stripeVars, ...animationVars, ...styles.root, ...style }}
+      className={cx(
+        "rg-grid",
+        virtualize && "rg-grid--virtual",
+        pageSticky && "rg-grid--sticky-page",
+        pageSticky && stickyToolbar && "rg-grid--sticky-toolbar",
+        pageSticky && stickyHeader && "rg-grid--sticky-header",
+        classNames.root,
+        className
+      )}
+      style={{ ...stripeVars, ...animationVars, ...stickyVars, ...styles.root, ...style }}
       data-rg-theme={theme || undefined}
       aria-busy={isLoading || undefined}
     >
       {showToolbar && (
-        <div {...slot("toolbar", "rg-grid__toolbar")}>
+        <div ref={toolbarRef} {...slot("toolbar", "rg-grid__toolbar")}>
           <div className="rg-grid__toolbar-left">
             {searchable && (
               <input
@@ -1713,7 +1778,7 @@ export function DataGrid<T extends AnyRow = AnyRow>({
 
       <div
         ref={scrollRef}
-        {...slot("scroll", "rg-grid__scroll")}
+        {...slot("scroll", cx("rg-grid__scroll", `rg-grid__scroll--${scrollbar}`))}
         onScroll={virtualize ? (e) => setScrollInfo({ top: e.currentTarget.scrollTop, height: e.currentTarget.clientHeight }) : undefined}
         style={{ ...styles.scroll, ...(maxHeight !== undefined ? { maxHeight } : virtualize ? { maxHeight: 400 } : null) }}
       >
@@ -1728,7 +1793,16 @@ export function DataGrid<T extends AnyRow = AnyRow>({
                   width: cols.reduce((sum, c) => sum + widthOf(c), selectionMode ? SELECT_W : 0),
                   minWidth: "100%",
                 }
-              : styles.table
+              : hasCustomWidth
+                ? {
+                    ...styles.table,
+                    tableLayout: "fixed",
+                    // Every width is a number: the table is exactly as wide as their sum (no stretching)
+                    ...(allNumericWidths
+                      ? { width: cols.reduce((sum, c) => sum + (c.width as number), selectionMode ? SELECT_W : 0) }
+                      : null),
+                  }
+                : styles.table
           }
         >
           <thead {...slot("thead", "rg-grid__thead")}>
@@ -1778,11 +1852,13 @@ export function DataGrid<T extends AnyRow = AnyRow>({
                         toggleSort(c, e.shiftKey);
                       }
                     }}
-                    className={cx("rg-grid__th", canSort && "rg-grid__th--sortable", pin.className, classNames.headerCell, c.className, c.headerClassName)}
+                    className={cx("rg-grid__th", canSort && "rg-grid__th--sortable", overflowOf(c) && `rg-grid__cell--${overflowOf(c)}`, pin.className, classNames.headerCell, c.className, c.headerClassName)}
                     style={{
                       width: resizing ? widthOf(c) : c.width,
                       minWidth: c.minWidth,
+                      maxWidth: resizing ? undefined : c.maxWidth,
                       textAlign: c.align,
+                      ...narrowPad(c),
                       ...styles.headerCell,
                       ...c.style,
                       ...c.headerStyle,
@@ -1794,7 +1870,7 @@ export function DataGrid<T extends AnyRow = AnyRow>({
                         ? createElement(c.headerRenderer, { column: c, sortDirection: sorted })
                         : c.headerCheckbox && c.type === "boolean"
                           ? renderHeaderCheckbox(c)
-                          : headerLabel(c)}
+                          : <span className="rg-grid__th-label">{headerLabel(c)}</span>}
                       {c.filterable && (
                         <ColumnFilter
                           column={c}
