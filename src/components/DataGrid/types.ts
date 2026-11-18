@@ -453,6 +453,28 @@ export interface PdfColumnStyle {
   fontSize?: number;
 }
 
+/** Colours and font for one PDF row or cell (returned by `pdf.rowStyle` / `pdf.cellStyle`). Every field is optional. */
+export interface PdfRowStyle {
+  /** Background colour, for example `"#fee2e2"`. */
+  backgroundColor?: PdfColor;
+  /** Text colour, for example `"#991b1b"`. */
+  textColor?: PdfColor;
+  fontStyle?: "normal" | "bold" | "italic" | "bolditalic";
+  fontSize?: number;
+}
+
+/** What `pdf.cellStyle` is told about one body cell. */
+export interface PdfCellInfo {
+  /** The whole data row (the object you gave the grid). */
+  row: any;
+  /** The raw value of this cell (not formatted). */
+  value: unknown;
+  /** The `field` of the cell's column. */
+  field: string;
+  /** Position of the row in the exported list (0, 1, 2 ...). */
+  rowIndex: number;
+}
+
 /** How the PDF's table and page look. Every field is optional. */
 export interface PdfStyle {
   /** Header row background. Default `"#4f46e5"`. */
@@ -495,6 +517,53 @@ export interface PdfStyle {
   columns?: Record<string, PdfColumnStyle>;
 }
 
+/** What `header` / `footer` functions are told (called again for every page). */
+export interface PdfPageContext {
+  /** This page (1, 2, 3 ...). */
+  page: number;
+  /** How many pages the PDF has. While the header height is measured this is a placeholder (99). */
+  pages: number;
+  /** Today's date as text. */
+  date: string;
+  /** The rows being exported (the data objects). */
+  rows: any[];
+}
+
+/** What a `title` function is told. */
+export interface PdfTitleContext {
+  date: string;
+  rows: any[];
+}
+
+/** Props of a `body.component`: one is drawn for each exported row. */
+export interface PdfBodyItemProps<T = any> {
+  row: T;
+  /** Position of the row in the exported list (0, 1, 2 ...). */
+  index: number;
+  /** How many rows are exported. */
+  count: number;
+}
+
+/** A custom PDF body: one block per exported row, laid out page by page. */
+export interface PdfBodyOptions {
+  /** How to draw one row: a template string (`"{name} ({email})"`) or a function returning text or a React element. */
+  render?: string | ((row: any, index: number) => ReactNode);
+  /** Or a React component that receives `{ row, index, count }`. It is drawn to a picture, so it needs `html2canvas`. */
+  component?: ComponentType<PdfBodyItemProps>;
+  /** The most blocks on one page (a second limit next to `columns` x `rows`; the smaller wins). When it is reached the next block goes on a new page. */
+  perPage?: number;
+  /** Blocks side by side (like cards in a grid). Default 1. */
+  columns?: number;
+  /**
+   * Lines of blocks on one page. Default 1, so with the default `columns: 1` each page holds one block.
+   * `columns: 2, rows: 2` puts 4 blocks on each page (2 across, 2 down). `"auto"` puts as many lines on a
+   * page as fit. When both `rows` and `perPage` are given, the smaller number of blocks wins.
+   */
+  rows?: number | "auto";
+  /** Space between blocks, in points. Default 8. */
+  gap?: number;
+}
+
 /** Options of a PDF export (the `pdf` field of {@link ExportOptions}). */
 export interface PdfExportOptions {
   /**
@@ -512,15 +581,23 @@ export interface PdfExportOptions {
    * A heading printed above the table on the first page: a string, or a React element (drawn to a picture
    * like `header` and `footer`, so it needs `html2canvas` in `libraries`).
    */
-  title?: ReactNode;
+  title?: ReactNode | ((ctx: PdfTitleContext) => ReactNode);
   /**
    * Printed at the top of every page. A string (tokens `{page}`, `{pages}` and `{date}` are replaced), or a
    * React element such as `<div style={{display:"flex"}}><img src={logo} height={32}/> Sales report</div>`.
    * An element is drawn to an image first (with html2canvas), so styled boxes, colours and images work.
    */
-  header?: ReactNode;
+  header?: ReactNode | ((ctx: PdfPageContext) => ReactNode);
   /** Printed at the bottom of every page. Same rules as `header`. */
-  footer?: ReactNode;
+  footer?: ReactNode | ((ctx: PdfPageContext) => ReactNode);
+  /**
+   * What goes between the header and the footer. Leave it out for the usual table. Otherwise give:
+   *  - a string: a template per row, `{field}` is replaced by that column's text (`"{name} - {email}"`), `{index}` by the row number
+   *  - a function `(row, index) => string | element`: one block per row
+   *  - an object `{ render | component, perPage, columns, gap }` for page layout (see {@link PdfBodyOptions})
+   * Only the rows being exported are used (visible or selected rows). When a page is full, the next block moves to a new page.
+   */
+  body?: string | ((row: any, index: number) => ReactNode) | PdfBodyOptions;
   /** Where the header goes horizontally. Default `"left"`. */
   headerAlign?: "left" | "center" | "right";
   /** Where the footer goes horizontally. Default `"center"`. */
@@ -565,6 +642,15 @@ export interface PdfExportOptions {
    * jsPDF's built-in fonts only cover Western European letters, so register one for other alphabets.
    */
   fontName?: string;
+  /**
+   * Colours for whole rows, chosen from the row's data (any column). Return nothing for rows that keep the
+   * normal look. Give a function (decides per row) or a plain object (the same look for every body row). It beats `stripeColors` and `bodyColor` on the rows it colours.
+   *
+   *     rowStyle: (row) => (row.status === "overdue" ? { backgroundColor: "#fee2e2", textColor: "#991b1b" } : undefined)
+   */
+  rowStyle?: PdfRowStyle | ((row: any, rowIndex: number) => PdfRowStyle | null | undefined | void);
+  /** Like `rowStyle` but for one cell, so it can also use that cell's own value. It beats `rowStyle` for that cell. */
+  cellStyle?: PdfRowStyle | ((info: PdfCellInfo) => PdfRowStyle | null | undefined | void);
   /** Called with the jsPDF document before anything is drawn, so you can register fonts or set document properties. */
   beforeRender?: (doc: any) => void | Promise<void>;
 }
@@ -603,6 +689,8 @@ export interface ExportOptions {
 
 /** Methods you can call from outside by passing a ref as `apiRef`. */
 export interface DataGridApi<T = Record<string, any>> {
+  /** Loads the data again: runs `loadRows` (client-side loading) or sends the query again (`serverSide`). */
+  reload: () => Promise<void>;
   /** Builds the CSV text without downloading it. */
   getCsv: (options?: ExportOptions) => string;
   /** Downloads a CSV file (opens the browser's save dialog). */
@@ -688,7 +776,22 @@ export type GridSlot =
 
 export interface DataGridProps<T = Record<string, any>> {
   columns: ColumnDef<T>[];
-  rows: T[];
+  /**
+   * The rows. Leave it `undefined` (or pass `null`) while your data is still on its way: the grid then shows the
+   * loading skeleton. An empty array `[]` means "loaded, and there is nothing", which shows the empty message.
+   */
+  rows?: T[] | null;
+  /**
+   * Let the grid load the rows itself (client-side loading). It runs on mount, shows the skeleton while the
+   * promise is pending, the rows when it resolves, the empty message when it resolves with `[]` and an error
+   * with a Retry button when it rejects. Use `apiRef.current.reload()` to run it again, or change `loadRowsKey`.
+   */
+  loadRows?: () => Promise<T[]>;
+  /**
+   * When this changes, `loadRows` runs again. It can be one value, an array or a plain object holding several
+   * (`[category, status]` or `{ category, status }`); they are compared by content, so an inline one is fine.
+   */
+  loadRowsKey?: unknown;
 
   /** Stable id for each row. Defaults to the row's index in `rows`. Row selection needs ids that do not change. */
   getRowId?: (row: T, index: number) => string | number;

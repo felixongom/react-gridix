@@ -42,7 +42,7 @@
 /* Widths (set by resizing or the width prop) include the cell padding, so a drag of 80px grows the column by exactly 80px */
 :where(.rg-grid__th, .rg-grid__td) { box-sizing: border-box; }
 :where(.rg-grid__th) {
-  position: relative; padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap; background: transparent;
+  position: relative; padding: var(--rg-header-padding, 5px 7px); text-align: left; font-weight: 600; white-space: nowrap; background: transparent;
   border-bottom: 1px solid var(--rg-header-border, var(--rg-border, #d1d5db)); user-select: none;
 }
 :where(.rg-grid__th--sortable) { cursor: pointer; }
@@ -99,9 +99,9 @@
 :where(.rg-grid-popup input[type="date"], .rg-grid__editor[type="date"]) { font-family: inherit; }
 @keyframes rg-pop-in { from { opacity: 0; transform: translateY(-4px); } }
 
-:where(.rg-grid__td) { padding: 9px 12px; border-bottom: 1px solid var(--rg-cell-border, #eef0f3); }
+:where(.rg-grid__td) { padding: var(--rg-cell-padding, 5px 7px); border-bottom: 1px solid var(--rg-cell-border, #eef0f3); }
 :where(.rg-grid__td--editable) { cursor: text; }
-:where(.rg-grid__td--editing) { padding: 3px 6px; }
+:where(.rg-grid__td--editing) { padding: var(--rg-cell-edit-padding, 3px 5px); }
 :where(.rg-grid__row--stripe-a) { background: var(--rg-stripe-a, transparent); }
 :where(.rg-grid__row--stripe-b) { background: var(--rg-stripe-b, #fafafa); }
 /* After the stripe rules on purpose: same (zero) specificity, later wins. */
@@ -409,3 +409,11 @@
 :where(.rg-grid__th.rg-grid__cell--ellipsis .rg-grid__th-content, .rg-grid__th.rg-grid__cell--clip .rg-grid__th-content) { display: flex; max-width: 100%; min-width: 0; }
 :where(.rg-grid__th.rg-grid__cell--ellipsis .rg-grid__th-label) { overflow: hidden; text-overflow: ellipsis; }
 :where(.rg-grid__th.rg-grid__cell--clip .rg-grid__th-label) { overflow: hidden; }
+
+/* ---- Column `align`: moves text, checkboxes and your own components, in the header and in the cells ---- */
+:where(.rg-grid__th-content--aligned) { display: flex; width: 100%; min-width: 0; }
+:where(.rg-grid__cell-inner) { display: flex; align-items: center; min-width: 0; }
+:where(.rg-grid__cell-text) { min-width: 0; }
+:where(.rg-grid__cell--ellipsis .rg-grid__cell-text) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:where(.rg-grid__cell--clip .rg-grid__cell-text) { overflow: hidden; white-space: nowrap; }
+:where(.rg-grid__cell--wrap .rg-grid__cell-text) { overflow-wrap: anywhere; }

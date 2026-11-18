@@ -385,7 +385,9 @@ The grid is generic: `DataGrid<T>` infers `T` from `rows`, and `ColumnDef<T>` ch
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `columns` | `ColumnDef<T>[]` | required | Column definitions |
-| `rows` | `T[]` | required | Data. In `serverSide` mode: the current page |
+| `rows` | `T[] \| null` | | Data. In `serverSide` mode: the current page. `undefined` / `null` = not loaded yet (skeleton); `[]` = loaded and empty. See [6.33](#633-client-side-loading-skeleton-empty-data) |
+| `loadRows` | `() => Promise<T[]>` | | The grid loads the rows itself: skeleton, rows, empty message or error with Retry. See [6.33](#633-client-side-loading-skeleton-empty-data) |
+| `loadRowsKey` | `unknown` | | Runs `loadRows` again when this changes (a value, an array or an object, compared by content) |
 | `getRowId` | `(row, index) => string \| number` | row index | Stable id for each row |
 | `editable` | `boolean` | `false` | Allow editing cells. Columns can override this |
 | `enterMovesDown` | `boolean` | `true` | After Enter saves a cell, edit the cell below |
@@ -439,7 +441,7 @@ The grid is generic: `DataGrid<T>` infers `T` from `rows`, and `ColumnDef<T>` ch
 | `filterDebounce` | `number` | `300` | Milliseconds to wait after the last keystroke in a typed column filter (text, exact, number) before it is applied. A column can override it. See [Debouncing typed filters](#debouncing-typed-filters) |
 | `loading` | `boolean` | follows the promise | Force the loading state on or off |
 | `loadingRows` | `number` | page size (max 20), or 5 | How many skeleton rows to draw |
-| `skeletonRow` | `ComponentType<SkeletonRowProps<T>>` | shimmer bars | Your own component for each placeholder row |
+| `skeletonRow` | `ComponentType<SkeletonRowProps<T>>` | shimmer bars | Your own component for each placeholder row. Not used when a column has its own `skeleton` ([6.32](#632-skeleton-per-column)) |
 | `errorMessage` | `ReactNode` | `"Could not load the data."` | Shown with a Retry button when the promise rejects |
 
 **Columns, keyboard, big data and export**
@@ -477,6 +479,10 @@ The grid is generic: `DataGrid<T>` infers `T` from `rows`, and `ColumnDef<T>` ch
 | `rowAnimationClassName` | `string \| (row, rowIndex) => string` | | Your own CSS class for the entrance animation. Replaces the built-in one. See [custom row animation](#custom-row-animation) |
 | `checkboxVariant` | `"button" \| "tick" \| "native"` | `"native"` | Checkbox look for boolean columns and row selection. Columns can override it |
 | `maxHeight` | `number \| string` | | Makes the body scroll, with a sticky header. Example: `400` or `"60vh"` |
+| `stickyToolbar` | `boolean` | `false` | Keep the toolbar at the top of the window while the page scrolls ([6.29](#629-sticky-toolbar-and-header-and-scroll-bars)) |
+| `stickyHeader` | `boolean` | `false` | Keep the column headers at the top of the window while the page scrolls |
+| `stickyOffset` | `number \| string` | `0` | Space kept free above the sticky parts (for your own fixed bar) |
+| `scrollbar` | `"thin" \| "auto" \| "hidden" \| "custom"` | `"thin"` | The scroll bars inside the grid |
 | `className` | `string` | | Classes for the root element (Tailwind works). The grid is `width: 100%` of its container by default |
 | `style` | `CSSProperties` | | Inline styles for the root element |
 | `classNames` | `Partial<Record<GridSlot, string>>` | | Classes for individual parts. See [6.11](#611-styling) |
@@ -501,9 +507,11 @@ const columns: ColumnDef<Employee>[] = [
 | `type` | `"text" \| "number" \| "boolean" \| "date" \| "sequence"` | `"number"` columns edit and parse as numbers, `"boolean"` columns show a checkbox, `"date"` columns have a calendar picker (see [6.6](#66-date-columns)), `"sequence"` columns show row numbers (see [row numbers](#row-numbers-sequence-column)). Default `"text"` |
 | `sequenceStart` | `number` | Only for `type: "sequence"`: the number of the first row (default `1`) |
 | `sequenceRestartEachPage` | `boolean` | Only for `type: "sequence"`: start again at `sequenceStart` on every page (default `false`: the count continues, 11, 12, ...) |
-| `width` | `number \| string` | Header cell width |
+| `width` | `number \| string` | Column width: pixels or any CSS length such as `"20%"`. Any value from 1 up ([6.28](#628-column-widths)) |
+| `overflow` | `"wrap" \| "ellipsis" \| "clip"` | What happens to text that does not fit, in the header and cells ([6.30](#630-very-narrow-columns-and-text-overflow)) |
+| `skeleton` | `ComponentType<SkeletonCellProps<T>>` | Placeholder for this column's cells while loading ([6.32](#632-skeleton-per-column)) |
 | `minWidth` / `maxWidth` | `number \| string` / `number` | Smallest and largest width (`maxWidth` limits dragging when resizing) |
-| `align` | `"left" \| "center" \| "right"` | Text alignment for the header, cells and editor |
+| `align` | `"left" \| "center" \| "right"` | Moves text, checkboxes and your own components in the header, cells and editor ([6.34](#634-column-align)) |
 | `sortable` | `boolean` | **Opt in to sorting this column** (default `false`) |
 | `resizable` | `boolean` | Show a drag handle on the header's right edge (default `false`). See [6.17](#617-resize-pin-and-hide-columns) |
 | `pinned` | `"left" \| "right"` | Stick the column to an edge while scrolling sideways |
@@ -2610,7 +2618,7 @@ The list of options in a `filterType: "select"` popup scrolls without showing a 
 
 ### 6.30 Very narrow columns and text overflow
 
-Any `width` from 1 upward is honored. Widths under 40 also drop the side padding of that column, so `width: 1` really is 1px wide. Use `overflow` to choose what happens to text that does not fit (header and cells):
+Any `width` from 1 upward is honored. Widths under 40 also drop the side padding of that column, so `width: 1` really is 1px wide (cells have 5px 7px padding by default, see 6.35). Use `overflow` to choose what happens to text that does not fit (header and cells):
 
 ```tsx
 const columns = [
@@ -2661,6 +2669,240 @@ const columns: ColumnDef<User>[] = [
 ```
 
 If any column has a `skeleton`, the grid's whole-row `skeletonRow` is not used (it draws one wide cell, which cannot be mixed with per-column cells).
+
+### 6.33 Client-side loading (skeleton, empty, data)
+
+You do not need your own `loading` flag. There are two ways to let the grid handle it.
+
+**A. `loadRows`: the grid runs your fetch.** It shows the skeleton on the first render (also on the server), then the rows, or "No rows to show" when the answer is `[]`, or an error with a Retry button when the promise rejects.
+
+```tsx
+const columns: ColumnDef<User>[] = [{ field: "name", header: "Name" }, { field: "email", header: "Email" }];
+
+// Always the same function: no useEffect, no loading state
+const loadUsers = async () => {
+  const res = await fetch("/api/users");
+  if (!res.ok) throw new Error("HTTP " + res.status);   // a rejected promise shows the error + Retry
+  return (await res.json()) as User[];
+};
+
+<DataGrid columns={columns} loadRows={loadUsers} loadingRows={8} />
+```
+
+Run it again when something of yours changes, or from code:
+
+```tsx
+// Reload whenever categoryId changes
+<DataGrid columns={columns} loadRows={() => fetchUsers(categoryId)} loadRowsKey={categoryId} />
+
+// Reload from a button
+const api = useRef<DataGridApi<User> | null>(null);
+<button onClick={() => api.current?.reload()}>Refresh</button>
+<DataGrid columns={columns} loadRows={loadUsers} apiRef={api} />
+```
+
+**Several values at once.** `loadRows` is one function, so it can use as many variables as you like. Put them all in `loadRowsKey` (an array or an object) so the grid reloads when any of them changes:
+
+```tsx
+const [category, setCategory] = useState("all");
+const [status, setStatus] = useState("active");
+const [from, setFrom] = useState("2026-01-01");
+
+<DataGrid
+  columns={columns}
+  loadRows={async () => {
+    const q = new URLSearchParams({ category, status, from });
+    const res = await fetch("/api/orders?" + q);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }}
+  loadRowsKey={[category, status, from]}   // or { category, status, from }
+/>
+```
+
+The key is compared by its contents, so an inline array or object does not reload on every render.
+
+**B. `rows` stays `undefined` until the data arrives.** Use this with your own state or a query library:
+
+```tsx
+const [users, setUsers] = useState<User[]>();           // undefined = not loaded yet
+useEffect(() => { fetchUsers().then(setUsers); }, []);
+
+<DataGrid columns={columns} rows={users} />            // skeleton -> rows (or "No rows" for [])
+
+// React Query / SWR: `data` is undefined while loading
+const { data } = useQuery({ queryKey: ["users"], queryFn: fetchUsers });
+<DataGrid columns={columns} rows={data} />
+```
+
+`undefined` or `null` means "not loaded yet" (skeleton); `[]` means "loaded and empty" (empty message). An explicit `loading` prop still overrides all of this.
+
+### 6.34 Column `align`
+
+`align: "left" | "center" | "right"` moves the content of the column in the header and in every cell. It works for text, checkboxes and any component you render (`cellRenderer`, `headerRenderer`), not only for text.
+
+```tsx
+const columns: ColumnDef<Order>[] = [
+  { field: "name",   header: "Name" },                                  // left (default)
+  { field: "status", header: "Status", align: "center" },               // text centered
+  { field: "paid",   header: "Paid",   type: "boolean", align: "center" }, // the checkbox is centered
+  { field: "total",  header: "Total",  type: "number", align: "right" },   // header and numbers on the right
+  {
+    field: "actions",
+    header: "Actions",
+    align: "right",                                                     // your own buttons move too
+    cellRenderer: ({ row }) => (
+      <div className="flex gap-2">
+        <button onClick={() => edit(row)}>Edit</button>
+        <button onClick={() => remove(row)}>Delete</button>
+      </div>
+    ),
+  },
+];
+```
+
+It also works together with `width` and `overflow` (for example a right-aligned column with `overflow: "ellipsis"`). Multi-line text is aligned line by line.
+
+### 6.35 Cell and header padding
+
+Header cells and body cells have **5px 7px** padding by default (3px 5px while a cell is being edited). Change it with CSS variables (on the grid, a parent or your own class), or per column with `style`:
+
+```css
+.my-grid {
+  --rg-cell-padding: 8px 12px;     /* body cells: vertical horizontal */
+  --rg-header-padding: 10px 12px;  /* header cells */
+  --rg-cell-edit-padding: 3px 5px; /* a cell while it is edited */
+}
+```
+
+```tsx
+<DataGrid className="my-grid" ... />
+
+// Only one column
+{ field: "notes", header: "Notes", style: { padding: "6px 16px" } }
+```
+
+### 6.36 PDF row and cell colors from your data
+
+`pdf.rowStyle` colors whole rows from any column's value, and `pdf.cellStyle` colors single cells. Return nothing for rows that keep the normal look (stripes, `bodyColor`). They only change the PDF; for the grid on screen use `rowStyle` / `cellStyle` on the grid and column.
+
+```tsx
+<DataGrid
+  rows={orders}
+  columns={columns}
+  exportable={{
+    formats: ["pdf"],
+    pdf: {
+      libraries,
+      stripeColors: ["#ffffff", "#f1f5f9"],
+
+      // Whole row, chosen from the row's data
+      rowStyle: (row) => {
+        if (row.status === "overdue") return { backgroundColor: "#fee2e2", textColor: "#991b1b" };
+        if (row.status === "paid")    return { backgroundColor: "#dcfce7", textColor: "#166534" };
+        // nothing returned: the stripes stay
+      },
+
+      // One cell, chosen from its own value (wins over rowStyle for that cell)
+      cellStyle: ({ field, value, row }) => {
+        if (field === "total" && Number(value) > 1000) return { fontStyle: "bold", textColor: "#b91c1c" };
+      },
+    },
+  }}
+/>
+```
+
+Both accept a **function** (decides per row or cell) or a plain **object** (the same look for every body row or cell):
+
+```tsx
+pdf: { rowStyle: { textColor: "#111827" }, cellStyle: { fontSize: 9 } }
+```
+
+A style can hold `backgroundColor`, `textColor`, `fontStyle` (`"normal" | "bold" | "italic" | "bolditalic"`) and `fontSize`. `cellStyle` receives `{ row, value, field, rowIndex }`; `value` is the raw, unformatted value. Both work with the "visible", "filtered" and "selected" scopes, because the row passed in is the one being exported. If you also pass `autoTableOptions.didParseCell`, it still runs, after these.
+
+### 6.37 PDF: custom body, header, footer and title
+
+`header`, `footer`, `title` and `body` are all optional. Each can be a string, a React element or a function. Leave `body` out and you get the usual table.
+
+```tsx
+<DataGrid
+  rows={rows}
+  columns={columns}
+  rowSelection
+  exportable={{
+    formats: ["pdf"],
+    pdf: {
+      libraries,                                   // see 6.19 (html2canvas is needed for elements)
+
+      // String: {page}, {pages}, {date} are filled in
+      footer: "Page {page} of {pages}",
+
+      // Function: called for every page, so it can show the page number in an element
+      header: ({ page, pages, date }) => (
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <img src="/logo.png" height={28} />
+          <span>{date} - page {page}/{pages}</span>
+        </div>
+      ),
+
+      // Function of the exported rows
+      title: ({ rows }) => `Staff list (${rows.length} people)`,
+
+      // The body: one block per exported row
+      body: { render: "{index}. {name} - {email}", rows: "auto" },   // as many per page as fit
+    },
+  }}
+/>
+```
+
+**Body forms**
+
+```tsx
+// 1. Template string: {field} is that column's text, {index} the row number (1, 2, 3 ...)
+body: "{name} <{email}>"            // one block per page (the default is 1 column x 1 row)
+
+// 2. Function: text or a React element for each row
+body: (row, index) => `${index + 1}. ${row.name}`
+body: (row) => <div style={{ border: "1px solid #ddd", padding: 8 }}><b>{row.name}</b><br />{row.email}</div>
+
+// 3. A component: receives { row, index, count }
+const Card = ({ row, index, count }: PdfBodyItemProps<User>) => (
+  <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8 }}>
+    <b>{row.name}</b> <small>({index + 1} of {count})</small>
+    <div>{row.email}</div>
+  </div>
+);
+body: { component: Card, columns: 2, rows: 4 }   // 8 cards per page
+
+// 4. A fixed grid per page: 2 across and 2 down, 4 blocks on every page
+body: { component: Card, columns: 2, rows: 2 }
+
+// 5. Several options at once
+body: { render: (row) => row.name, rows: 5, columns: 2, gap: 12 }   // 10 per page
+```
+
+**Pages.** Blocks are placed one after the other. When the next block does not fit on the page, or `perPage` blocks are already on it, it moves to a new page. `columns` and `rows` both default to **1**, so by default each page holds one block. `columns` x `rows` is the number of blocks per page (`columns: 2, rows: 2` = 4). Use `rows: "auto"` to put as many lines on a page as fit. If you also give `perPage`, the smaller number wins. `columns` puts blocks side by side (like cards); `perPage` counts blocks, not lines.
+
+| Body option | Meaning | Default |
+| --- | --- | --- |
+| `render` | Template string or `(row, index) => text / element` | |
+| `component` | React component with `{ row, index, count }` | |
+| `columns` | Blocks side by side | `1` |
+| `rows` | Lines of blocks on one page. `columns: 2, rows: 2` = 4 blocks per page (2 across, 2 down). `"auto"` = as many as fit | `1` |
+| `perPage` | A second limit on blocks per page (the smaller of `columns` x `rows` and `perPage` wins) | none |
+| `gap` | Space between blocks, in points | `8` |
+
+**Which rows.** A PDF only holds the rows currently shown (`"visible"`) or the selected rows (`"selected"`). If the scope is `"filtered"` (all matching rows) the PDF uses `"visible"`, the rows of the current page.
+
+Notes: elements are drawn to pictures with html2canvas, one per row, so a custom element body for hundreds of rows takes a while; strings need no html2canvas and are fast. `rowStyle` / `cellStyle` and `style.stripeColors` only apply to the table, not to a custom body.
+
+### 6.38 First load and row animations
+
+Rows that appear in an empty grid (the first load, right after the skeleton) just appear. They do not play the enter animation, because the staggered fade-in left blank rows on screen for a moment while the rows waited for their turn. Rows added or removed later, and rows on a new page, still animate as set by `rowAnimation`. To switch animations off completely use `animateRows={false}` or `rowAnimation="none"`; to make them quicker use `rowAnimationDuration` and `rowAnimationStagger`:
+
+```tsx
+<DataGrid rowAnimation="fade" rowAnimationDuration={200} rowAnimationStagger={10} ... />
+```
 
 ### 6.27 Known limitations
 

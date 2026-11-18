@@ -1,2 +1,6 @@
 /node_modules
+/v2
+/v3
+# /images
+/src
 /dist

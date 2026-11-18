@@ -109,6 +109,18 @@ interface EditState {
 }
 
 /** Width of the selection (checkbox) column. */
+/** Are two `loadRowsKey` values the same? Arrays and plain objects are compared by their contents, one level deep. */
+function sameKey(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => Object.is((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** Stands in for `rows` while it is undefined / null. One shared array, so its identity never changes. */
+const NO_ROWS: never[] = [];
 const SELECT_W = 38;
 /** Width used for a column that has no width yet when the user starts resizing. */
 const DEFAULT_COL_W = 150;
@@ -148,7 +160,9 @@ const isBadDateInput = (el: HTMLInputElement) => el.type === "date" && el.validi
 
 export function DataGrid<T extends AnyRow = AnyRow>({
   columns,
-  rows,
+  rows: rowsProp,
+  loadRows,
+  loadRowsKey,
   getRowId,
   editable = false,
   enterMovesDown = true,
@@ -236,6 +250,9 @@ export function DataGrid<T extends AnyRow = AnyRow>({
 
   // The grid keeps its own copy of the rows so that edits show immediately. It copies again
   // whenever the `rows` prop changes identity (new array from your state, new page from the server).
+  // `rows` may be undefined / null while the data is on its way: that counts as "not loaded yet" (skeleton)
+  const rows = rowsProp ?? (NO_ROWS as T[]);
+  const rowsNotLoaded = rowsProp == null && !loadRows;
   const [data, setData] = useState<T[]>(rows);
   const dataRef = useRef<T[]>(rows);
   useEffect(() => {
@@ -246,11 +263,19 @@ export function DataGrid<T extends AnyRow = AnyRow>({
     dataRef.current = next;
     setData(next);
   };
+  const applyDataRef = useRef(applyData);
+  applyDataRef.current = applyData;
 
   // Each of these can be controlled from outside (pass the prop) or left to the grid.
   const [search, setSearch] = useControlled(searchProp, "", onSearchChange);
   const [filters, setFilters] = useControlled<Record<string, FilterValue>>(filtersProp, {}, onFiltersChange);
-  const [sort, setSort] = useControlled<SortModel[]>(sortProp, toSortList(defaultSort), onSortChange);
+  const [rawSort, setSort] = useControlled<SortModel[]>(sortProp, toSortList(defaultSort), onSortChange);
+  // Be forgiving about what the app passes: a single { field, direction } object, null, or empty / broken
+  // entries (undefined, strings, ...) are cleaned up instead of crashing the grid.
+  const sort = useMemo(
+    () => toSortList(rawSort as SortModel | SortModel[] | null | undefined).filter((s) => !!s && typeof s.field === "string" && (s.direction === "asc" || s.direction === "desc")),
+    [rawSort]
+  );
   const [page, setPage] = useControlled(pageProp, 0, onPageChange);
   const [pageSize, setPageSizeState] = useState(initialPageSize);
   const changePageSize = (n: number) => {
@@ -464,7 +489,45 @@ export function DataGrid<T extends AnyRow = AnyRow>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverSide, pagination, page, pageCount]);
 
-  const isLoading = loadingProp ?? pending;
+  // ---- Client-side loading (`loadRows`): the grid runs your async function itself ----
+  // It starts as "loading", so the very first render (also on the server) already shows the skeleton.
+  const [clientLoading, setClientLoading] = useState(() => !!loadRows);
+  const [clientFailed, setClientFailed] = useState(false);
+  const loadRowsRef = useRef(loadRows);
+  loadRowsRef.current = loadRows;
+  const clientRequest = useRef(0);
+  const reloadRows = useCallback(async () => {
+    const fn = loadRowsRef.current;
+    if (!fn) return;
+    const id = ++clientRequest.current; // a newer load makes older answers irrelevant
+    setClientLoading(true);
+    setClientFailed(false);
+    try {
+      const result = await fn();
+      if (id !== clientRequest.current) return;
+      applyDataRef.current(result ?? []);
+      setClientLoading(false);
+    } catch {
+      if (id !== clientRequest.current) return;
+      setClientFailed(true);
+      setClientLoading(false);
+    }
+  }, []);
+  const hasLoadRows = !!loadRows;
+  // `loadRowsKey` may be one value, an array or a plain object. An inline `[a, b]` is a new array on every
+  // render, so compare the contents (one level deep) and only count a change when something inside differs.
+  const keyRef = useRef<{ value: unknown; version: number }>({ value: loadRowsKey, version: 0 });
+  if (!sameKey(keyRef.current.value, loadRowsKey)) keyRef.current = { value: loadRowsKey, version: keyRef.current.version + 1 };
+  const keyVersion = keyRef.current.version;
+  useEffect(() => {
+    if (hasLoadRows) void reloadRows();
+    return () => {
+      clientRequest.current++; // ignore an answer that arrives after unmount
+    };
+  }, [hasLoadRows, keyVersion, reloadRows]);
+
+  const isLoading = loadingProp ?? (pending || clientLoading || rowsNotLoaded);
+  const hasFailed = failed || clientFailed;
 
   // ==========================================================================================
   // Selection
@@ -871,6 +934,10 @@ export function DataGrid<T extends AnyRow = AnyRow>({
     return Math.min(k, 24);
   };
 
+  // Rows that appeared in an empty grid (the first load, after the skeleton) are not animated: the skeleton already
+  // told the user something is coming, and the staggered fade-in would show blank rows for a moment.
+  const calmIds = useRef(new Set<string | number>());
+
   const [ghosts, setGhosts] = useState<Ghost<T>[]>([]);
   // What was on screen after the previous commit: the rows, the order (rows and leaving rows), and which page it was
   const shown = useRef<{ rows: Entry<T>[]; order: (string | number)[]; pageKey: string }>({ rows: [], order: [], pageKey: "" });
@@ -896,10 +963,11 @@ export function DataGrid<T extends AnyRow = AnyRow>({
 
     // Forget the stagger positions of rows that are gone (they start fresh if they ever come back)
     enterIndex.current.forEach((_, id) => !currentIds.has(id) && enterIndex.current.delete(id));
+    calmIds.current.forEach((id) => !currentIds.has(id) && calmIds.current.delete(id));
 
     // Nothing to keep when animations are off, while loading, after an error, when the page changed (a
     // whole new set of rows replaces the old one), or for people who asked for less motion
-    const skip = !exitOn || isLoading || failed || prev.pageKey !== pageKey || prefersReducedMotion();
+    const skip = !exitOn || isLoading || hasFailed || prev.pageKey !== pageKey || prefersReducedMotion();
 
     let next = ghosts;
     if (skip) {
@@ -921,7 +989,7 @@ export function DataGrid<T extends AnyRow = AnyRow>({
 
     shown.current = { rows: visible, order: interleave(visible, next).map((it) => (it.kind === "row" ? it.entry.id : it.ghost.id)), pageKey };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, ghosts, isLoading, failed, pageKey, exitOn]);
+  }, [visible, ghosts, isLoading, hasFailed, pageKey, exitOn]);
 
   // Every leaving row is removed when its animation ends. The timer is a safety net for custom classes
   // and for browsers that skip animations (display: none, hidden tabs ...).
@@ -973,6 +1041,8 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   const widthOf = (c: ColumnDef<T>) => widths[c.field] ?? (typeof c.width === "number" ? c.width : DEFAULT_COL_W);
   const minWidthOf = (c: ColumnDef<T>) => Math.max(40, typeof c.minWidth === "number" ? c.minWidth : 60);
 
+  /** Where the content sits in this column (header and cells): `align` as a flex `justify-content` value. Left is the default and needs nothing. */
+  const justifyOf = (c: ColumnDef<T>) => (c.align === "center" ? "center" : c.align === "right" ? "flex-end" : undefined);
   /** How overflowing text is handled in this column (see ColumnDef.overflow). */
   const overflowOf = (c: ColumnDef<T>) =>
     c.overflow ?? (typeof c.width === "number" && c.width < 40 ? "clip" : c.width !== undefined && c.width !== "" ? "wrap" : undefined);
@@ -1079,13 +1149,17 @@ export function DataGrid<T extends AnyRow = AnyRow>({
     const display: (string | number | boolean | null | undefined)[][] = [];
     const typed: XlsxValue[][] = [];
     const records: Record<string, unknown>[] = [];
+    const raws: unknown[][] = [];
+    const sources: unknown[] = [];
 
     source.forEach(({ row }, n) => {
       const shown: (string | number | boolean | null | undefined)[] = [];
       const values: XlsxValue[] = [];
       const record: Record<string, unknown> = {};
+      const rawRow: unknown[] = [];
       exportCols.forEach((c, k) => {
         const raw = getByPath(row, c.field);
+        rawRow.push(raw);
         let text: string | number | boolean | null | undefined;
         let value: XlsxValue;
         if (c.type === "sequence") {
@@ -1118,8 +1192,10 @@ export function DataGrid<T extends AnyRow = AnyRow>({
       display.push(shown);
       typed.push(values);
       records.push(record);
+      raws.push(rawRow);
+      sources.push(row);
     });
-    return { opts, cols: exportCols, headers, display, typed, records };
+    return { opts, cols: exportCols, headers, display, typed, records, raws, sources };
   };
 
   const fileName = (opts: ExportOptions, extension: string) => `${opts.filename ?? "export"}.${extension}`;
@@ -1157,7 +1233,9 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   };
 
   const buildPdfFile = async (options: ExportOptions = {}) => {
-    const t = buildTable(options);
+    // A PDF only ever holds the rows on screen or the selected rows: "all matching rows" (filtered) becomes "visible"
+    const wanted = options.scope ?? exportDefaults.scope;
+    const t = buildTable({ ...options, scope: wanted === "selected" ? "selected" : "visible" });
     // pdf.ts loads jsPDF only now, when someone really exports a PDF
     return buildPdf(
       {
@@ -1165,6 +1243,8 @@ export function DataGrid<T extends AnyRow = AnyRow>({
         rows: t.display.map((r) => r.map((v) => (v === null || v === undefined ? "" : String(v)))),
         aligns: t.cols.map((c) => c.align ?? (c.type === "number" || c.type === "sequence" ? "right" : undefined)),
         fields: t.cols.map((c) => c.field),
+        sources: t.sources,
+        raw: t.raws,
       },
       t.opts.pdf,
       // Only when asked: read the grid's colours, stripes and borders from the page
@@ -1210,6 +1290,10 @@ export function DataGrid<T extends AnyRow = AnyRow>({
   useEffect(() => {
     if (!apiRef) return;
     apiRef.current = {
+      reload: async () => {
+        if (loadRowsRef.current) await reloadRows();
+        else if (serverSide) runQuery(queryRef.current);
+      },
       getCsv: buildCsv,
       exportCsv: runExport,
       getJson: buildJson,
@@ -1582,7 +1666,10 @@ export function DataGrid<T extends AnyRow = AnyRow>({
     const animationClass = typeof rowAnimationClassName === "function" ? rowAnimationClassName(row, index) : rowAnimationClassName;
     const exitClass = typeof rowExitAnimationClassName === "function" ? rowExitAnimationClassName(row, index) : rowExitAnimationClassName;
     // Built-in animations: a base class (timing, delay) plus one class per animation name. A custom class replaces them.
-    const enterClasses = animationClass || (enterAnim === "none" ? undefined : cx("rg-grid__row--enter", `rg-row-in--${enterAnim}`));
+    // Nothing was on screen before (skeleton, empty grid, first paint): these rows just appear
+    if (animOn && !leaving && shown.current.rows.length === 0) calmIds.current.add(id);
+    const calm = calmIds.current.has(id);
+    const enterClasses = calm ? undefined : animationClass || (enterAnim === "none" ? undefined : cx("rg-grid__row--enter", `rg-row-in--${enterAnim}`));
     const exitClasses = exitClass || cx("rg-grid__row--exit", exitAnim !== "none" && `rg-row-out--${exitAnim}`);
     return (
       <tr
@@ -1674,13 +1761,26 @@ export function DataGrid<T extends AnyRow = AnyRow>({
               )}
               style={{ textAlign: c.align, ...narrowPad(c), ...styles.cell, ...c.style, ...cellStyle, ...pin.style }}
             >
-              {isEditing && editing && !leaving
-                ? renderEditor(entry, c, editing)
-                : c.cellRenderer
-                  ? createElement(c.cellRenderer, params)
-                  : c.type === "boolean" && !c.cellEditor
-                    ? renderCheckbox(c, params)
-                    : params.formattedValue}
+              {isEditing && editing && !leaving ? (
+                renderEditor(entry, c, editing)
+              ) : justifyOf(c) ? (
+                // `align` also moves checkboxes and your own components: the content sits in a flex box
+                <div className="rg-grid__cell-inner" style={{ justifyContent: justifyOf(c) }}>
+                  {c.cellRenderer ? (
+                    createElement(c.cellRenderer, params)
+                  ) : c.type === "boolean" && !c.cellEditor ? (
+                    renderCheckbox(c, params)
+                  ) : (
+                    <span className="rg-grid__cell-text">{params.formattedValue}</span>
+                  )}
+                </div>
+              ) : c.cellRenderer ? (
+                createElement(c.cellRenderer, params)
+              ) : c.type === "boolean" && !c.cellEditor ? (
+                renderCheckbox(c, params)
+              ) : (
+                params.formattedValue
+              )}
             </td>
           );
         })}
@@ -1865,7 +1965,7 @@ export function DataGrid<T extends AnyRow = AnyRow>({
                       ...pin.style,
                     }}
                   >
-                    <span className="rg-grid__th-content">
+                    <span className={cx("rg-grid__th-content", justifyOf(c) && "rg-grid__th-content--aligned")} style={justifyOf(c) ? { justifyContent: justifyOf(c) } : undefined}>
                       {c.headerRenderer
                         ? createElement(c.headerRenderer, { column: c, sortDirection: sorted })
                         : c.headerCheckbox && c.type === "boolean"
@@ -1916,11 +2016,11 @@ export function DataGrid<T extends AnyRow = AnyRow>({
           <tbody {...slot("tbody", "rg-grid__tbody")}>
             {isLoading ? (
               Array.from({ length: skeletonCount }, (_, i) => renderSkeletonRow(i))
-            ) : failed ? (
+            ) : hasFailed ? (
               <tr>
                 <td colSpan={colSpan} {...slot("empty", "rg-grid__empty rg-grid__error")} role="alert">
                   {errorMessage}{" "}
-                  <button type="button" className="rg-grid__tool-btn" onClick={() => runQuery(queryRef.current)}>
+                  <button type="button" className="rg-grid__tool-btn" onClick={() => (loadRows ? void reloadRows() : runQuery(queryRef.current))}>
                     Retry
                   </button>
                 </td>

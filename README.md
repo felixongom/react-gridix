@@ -2198,13 +2198,42 @@ Read more about stying pdf here [stying pdf here](https://github.com/simonbengts
   exportable={{
     formats: ["pdf"],
     pdf: {
-      title: <TitleComponent />,
-      header: "Acme Corporation, People report ({date})",
-      footer: "Confidential, page {page} of {pages}",
+      header: "Acme Corporation, People report ({date})",//called again for every page
+      title: <TitleComponent />,//string, element or function
+      body: <BodyComponent />, //OR text
+      footer: "Confidential, page {page} of {pages}",//  OR component
     },
   }}
 />
 ```
+Alternatively.
+
+```tsx
+// A string. {page}, {pages} and {date} are replaced on each page.
+<DataGrid
+  exportable={{
+    formats: ["pdf"],
+    pdf: {
+      header: ({ page, pages, date }) =>"Acme Corporation, People report ({date})",//OR component
+      title: <TitleComponent />
+      body: {
+        render: (row) =><h3>Reocord {row.id} Here, salary: {row.salary}</h3>,
+          columns: 2,   // 2 across
+          rows: 2,      // 2 down  ->  4 blocks on every page
+      },
+      footer: "Confidential, page {page} of {pages}",//  OR component
+    },
+  }}
+/>
+```
+##### Body options
+| You set | Result |
+| --- | --- |
+| nothing (`body: "{name}"`) | 1 block per page |
+| `columns: 2` | 2 per page |
+| `columns: 2, rows: 2` | 4 per page |
+| `rows: "auto"` | as many as fit on each page |
+| `columns: 2, rows: 4, perPage: 6` | 6, because the smaller number wins |
 
 ```tsx
 // A component: a logo, colours, borders, anything you can style. Images and inline styles work.
@@ -2288,6 +2317,16 @@ pdf: {
   libraries,
   margin: { top: 60, right: 30, bottom: 50, left: 30 },
   tableTheme: "grid",                                  // "striped" | "grid" | "plain"
+  // Function: decides per row
+  rowStyle: (row) => (row.status === "overdue" ? { backgroundColor: "#fee2e2" } : undefined),
+
+  // Object: the same look for every body row
+  rowStyle: { textColor: "#111827" },
+
+  // Same for cells
+  cellStyle: ({ field, value }) => (field === "total" && value > 1000 ? { fontStyle: "bold" } : undefined),
+  cellStyle: { fontSize: 9 },
+  // 
   style: {
     pageBackground: "#0f172a",                         // colour behind everything, on every page
     headColor: "#f59e0b",
@@ -2320,6 +2359,8 @@ pdf: {
 | `textColor`, `titleColor`, `titleSize` | Header / footer / page-number text, and the `title` |
 | `margin` | Same as the `margin` option |
 | `columns` | `{ [field]: { width, align, textColor, backgroundColor, fontStyle, fontSize } }`. `width` is points, `"auto"` or `"wrap"` |
+| `rowStyle:(row, rowIndex)=>` | `Fnction:` returning an abject decides per row OR `Object:` the same look for every body row |
+| `cellStyle: ({ row, value, field, rowIndex }) =>` | `Fnction:` returning an abject decides per row cell OR `Object:` the same look for every row cell |
 
 **Which wins.** Weakest to strongest: built-in defaults, the grid's look (`matchGridStyle`), the flat options (`headColor`, `fontSize`, `margin`, ...), then `style`. So you can copy the grid and still force one colour:
 
@@ -2831,8 +2872,7 @@ useEffect(() => { fetchRows().then(setRows).finally(() => setLoading(false)); },
 
 <DataGrid rows={rows} columns={columns} loading={loading} loadingRows={8} />
 ```
-
-### 6.31 Skeleton per column
+### 6.32 Skeleton per column
 
 Give a column its own placeholder with `skeleton`. It replaces the default bar (and the grid's `skeletonRow`) for that column; the other columns keep the default bar.
 
@@ -2858,7 +2898,74 @@ const columns: ColumnDef<User>[] = [
 
 If any column has a `skeleton`, the grid's whole-row `skeletonRow` is not used (it draws one wide cell, which cannot be mixed with per-column cells).
 
-### 6.32 Known limitations
+### 6.33 Client-side loading (skeleton, empty, data)
+
+You do not need your own `loading` flag. There are two ways to let the grid handle it.
+
+**A. `loadRows`: the grid runs your fetch.** It shows the skeleton on the first render (also on the server), then the rows, or "No rows to show" when the answer is `[]`, or an error with a Retry button when the promise rejects.
+
+```tsx
+const columns: ColumnDef<User>[] = [{ field: "name", header: "Name" }, { field: "email", header: "Email" }];
+
+// Always the same function: no useEffect, no loading state
+const loadUsers = async () => {
+  const res = await fetch("/api/users");
+  if (!res.ok) throw new Error("HTTP " + res.status);   // a rejected promise shows the error + Retry
+  return (await res.json()) as User[];
+};
+
+<DataGrid columns={columns} loadRows={loadUsers} loadingRows={8} />
+```
+
+Run it again when something of yours changes, or from code:
+
+```tsx
+// Reload whenever categoryId changes
+<DataGrid columns={columns} loadRows={() => fetchUsers(categoryId)} loadRowsKey={categoryId} />
+
+// Reload from a button
+const api = useRef<DataGridApi<User> | null>(null);
+<button onClick={() => api.current?.reload()}>Refresh</button>
+<DataGrid columns={columns} loadRows={loadUsers} apiRef={api} />
+```
+
+**Several values at once.** `loadRows` is one function, so it can use as many variables as you like. Put them all in `loadRowsKey` (an array or an object) so the grid reloads when any of them changes:
+
+```tsx
+const [category, setCategory] = useState("all");
+const [status, setStatus] = useState("active");
+const [from, setFrom] = useState("2026-01-01");
+
+<DataGrid
+  columns={columns}
+  loadRows={async () => {
+    const q = new URLSearchParams({ category, status, from });
+    const res = await fetch("/api/orders?" + q);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }}
+  loadRowsKey={[category, status, from]}   // or { category, status, from }
+/>
+```
+
+The key is compared by its contents, so an inline array or object does not reload on every render.
+
+**B. `rows` stays `undefined` until the data arrives.** Use this with your own state or a query library:
+
+```tsx
+const [users, setUsers] = useState<User[]>();           // undefined = not loaded yet
+useEffect(() => { fetchUsers().then(setUsers); }, []);
+
+<DataGrid columns={columns} rows={users} />            // skeleton -> rows (or "No rows" for [])
+
+// React Query / SWR: `data` is undefined while loading
+const { data } = useQuery({ queryKey: ["users"], queryFn: fetchUsers });
+<DataGrid columns={columns} rows={data} />
+```
+
+`undefined` or `null` means "not loaded yet" (skeleton); `[]` means "loaded and empty" (empty message). An explicit `loading` prop still overrides all of this.
+
+### 6.31 Known limitations
 
 Not included:
 
@@ -2970,6 +3077,19 @@ The Styling demo loads Tailwind from its CDN, so it needs an internet connection
 | Type error: `field` not assignable | `field` must be a key of your row type. Check the spelling, and that `ColumnDef<T>` uses the same `T` as `rows` |
 
 ---
+
+### Other changes
+
+**Behaviour changes in the animation and export release**
+
+- Rows are matched by `getRowId`, so sorting, searching and filtering no longer replay the entrance animation on every row: rows that stay are left alone, new rows animate in and removed rows animate out. A new page still animates all its rows in. Set `animateRows={false}` for the old look of none at all.
+- The built-in entrance is now made of two classes: `rg-grid__row--enter` (timing) and `rg-row-in--slide-up` (the animation). If you restyled `.rg-grid__row--enter` it still works. The keyframes are named `rg-in-slide-up` etc. (`rg-row-in` is kept as an alias).
+- `exportable` still gives a single "Export CSV" button unless you add `formats`. `ExportOptions.scope` gained `"visible"`.
+- `FilterValue` gained `TextFilter` (`{ operator, value }`), used only by columns with `filterOperators`. If you read `filters` yourself, handle both a string and that object for such columns.
+- PDF export uses `jspdf`, `jspdf-autotable` and `html2canvas`, which you install and pass in `exportable.pdf.libraries`. The package itself depends on none of them, so nothing changes if you do not use PDF.
+
+Also new in the earlier release: `filterDebounce`, a smaller default checkbox (17px instead of 20px, with a tighter gap and a narrower selection column), a calendar for date cells and date filters, the `sequence` column type, `rowAnimationClassName`, and re-tuned theme colours (stronger header contrast, clearer inputs in the dark themes).
+
 ### Changed defaults
 
 Three defaults changed so that every feature is opt-in.

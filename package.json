@@ -1,6 +1,6 @@
 {
   "name": "react-gridix",
-  "version": "0.3.0",
+  "version": "0.3.5",
   "description": "A React library for displaying arrays in tables",
   "author": "Felix Ongom",
   "type": "module",

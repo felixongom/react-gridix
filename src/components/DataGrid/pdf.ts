@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import { contrastText, parseColor, type RGB } from "./color";
-import type { PdfExportOptions, PdfLibraries, PdfPadding, PdfStyle } from "./types";
+import type { PdfBodyOptions, PdfExportOptions, PdfLibraries, PdfPadding, PdfRowStyle, PdfStyle } from "./types";
 
 /*
   PDF export.
@@ -22,6 +22,10 @@ export interface PdfTable {
   aligns: ("left" | "center" | "right" | undefined)[];
   /** The `field` of each column, so `style.columns` can address them. */
   fields: string[];
+  /** The data row behind each table row (for `rowStyle` / `cellStyle`). */
+  sources?: unknown[];
+  /** The raw (unformatted) value of every cell. */
+  raw?: unknown[][];
 }
 
 /** A header or footer, ready to draw. */
@@ -118,6 +122,13 @@ function defined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
+/** Turns the three shapes `body` can have (string, function, object) into one object. */
+function normalizeBody(body: PdfExportOptions["body"]): PdfBodyOptions | null {
+  if (body === undefined || body === null) return null;
+  if (typeof body === "string" || typeof body === "function") return { render: body };
+  return body;
+}
+
 /**
  * Builds a PDF with the table, plus an optional header and footer on every page.
  *
@@ -137,7 +148,8 @@ export async function buildPdf(table: PdfTable, options: PdfExportOptions = {}, 
   if (!libs) throw new Error(`PDF export needs the jspdf and jspdf-autotable libraries. ${INSTALL_HINT}`);
   const JsPDF: any = libs.jsPDF;
   const autoTable: any = libs.autoTable;
-  if (typeof JsPDF !== "function" || typeof autoTable !== "function") {
+  // A custom `body` is laid out by this file itself, so only the table needs autoTable
+  if (typeof JsPDF !== "function" || (!options.body && typeof autoTable !== "function")) {
     throw new Error(`exportable.pdf.libraries must contain jsPDF (a class) and autoTable (a function). ${INSTALL_HINT}`);
   }
 
@@ -154,6 +166,8 @@ export async function buildPdf(table: PdfTable, options: PdfExportOptions = {}, 
     maxImageHeight = 90,
     beforeRender,
     autoTableOptions,
+    rowStyle,
+    cellStyle,
   } = options;
 
   // ---- the look: defaults < the grid (if asked) < flat options < style ----
@@ -185,7 +199,7 @@ export async function buildPdf(table: PdfTable, options: PdfExportOptions = {}, 
   const lineColor = parseColor(st.borderColor);
 
   const doc = new JsPDF({
-    orientation: orientation === "auto" ? (table.headers.length > 6 ? "landscape" : "portrait") : orientation,
+    orientation: orientation === "auto" ? (!options.body && table.headers.length > 6 ? "landscape" : "portrait") : orientation,
     unit: "pt",
     format: pageSize,
   });
@@ -210,8 +224,13 @@ export async function buildPdf(table: PdfTable, options: PdfExportOptions = {}, 
   // ---- header and footer: measure them first, so the table leaves room for them on every page ----
   const elementBg = pageBg ? rgbCss(pageBg) : "#ffffff";
   const elementFg = rgbCss(textColor);
-  const headerBlock = await toBlock(header, contentW, maxImageHeight, libs, elementBg, elementFg);
-  const footerBlock = await toBlock(footer, contentW, maxImageHeight, libs, elementBg, elementFg);
+  const today = new Date().toLocaleDateString();
+  const exportedRows = table.sources ?? [];
+  // A header / footer may be a function of the page: it is measured once here and called again for every page below
+  const resolveFor = (spec: unknown, page: number, pages: number): ReactNode =>
+    typeof spec === "function" ? (spec as (c: unknown) => ReactNode)({ page, pages, date: today, rows: exportedRows }) : (spec as ReactNode);
+  const headerBlock = await toBlock(resolveFor(header, 1, 99), contentW, maxImageHeight, libs, elementBg, elementFg);
+  const footerBlock = await toBlock(resolveFor(footer, 1, 99), contentW, maxImageHeight, libs, elementBg, elementFg);
 
   doc.setFont(fontName, "normal");
   doc.setFontSize(TEXT_SIZE);
@@ -232,91 +251,198 @@ export async function buildPdf(table: PdfTable, options: PdfExportOptions = {}, 
 
   // ---- the title and the table ----
   let startY = topMargin;
-  if (title && typeof title !== "string" && typeof title !== "number" && typeof title !== "boolean") {
+  // The title may be a function too (it is told the exported rows)
+  const titleNode: ReactNode = typeof title === "function" ? title({ date: today, rows: exportedRows }) : title;
+  if (titleNode && typeof titleNode !== "string" && typeof titleNode !== "number" && typeof titleNode !== "boolean") {
     // A React element: drawn to a picture, shrunk to fit the page width, at the left edge
-    const picture = await toBlock(title, contentW, maxImageHeight, libs, elementBg, elementFg);
+    const picture = await toBlock(titleNode, contentW, maxImageHeight, libs, elementBg, elementFg);
     if (picture && picture.kind === "image") {
       doc.addImage(picture.dataUrl, "PNG", m.left, startY, picture.width, picture.height);
       startY += picture.height + 12;
     }
-  } else if (title) {
+  } else if (titleNode) {
     doc.setFont(fontName, "bold");
     doc.setFontSize(st.titleSize ?? 14);
     doc.setTextColor(...titleColor);
-    doc.text(String(title), m.left, startY + (st.titleSize ?? 14));
+    doc.text(String(titleNode), m.left, startY + (st.titleSize ?? 14));
     startY += (st.titleSize ?? 14) + 12;
   }
 
-  // Per column: alignment from the column, then whatever `style.columns` says for that field
-  const columnStyles: Record<number, Record<string, unknown>> = {};
-  table.fields.forEach((field, i) => {
-    const cs = st.columns?.[field];
-    const style: Record<string, unknown> = {};
-    const align = cs?.align ?? table.aligns[i];
-    if (align) style.halign = align;
-    if (cs?.width !== undefined) style.cellWidth = cs.width;
-    const color = parseColor(cs?.textColor);
-    if (color) style.textColor = color;
-    const fill = parseColor(cs?.backgroundColor);
-    if (fill) style.fillColor = fill;
-    if (cs?.fontStyle && FONT_STYLES.includes(cs.fontStyle)) style.fontStyle = cs.fontStyle;
-    if (cs?.fontSize) style.fontSize = cs.fontSize;
-    if (Object.keys(style).length > 0) columnStyles[i] = style;
-  });
+  const bodySpec = normalizeBody(options.body);
+  if (bodySpec) {
+    // ---- a custom body: one block per exported row, flowing over as many pages as needed ----
+    const cols = Math.max(1, Math.floor(bodySpec.columns ?? 1));
+    const gap = bodySpec.gap ?? 8;
+    // `columns` x `rows` blocks go on a page (both default to 1); `rows: "auto"` means "as many as fit"; `perPage` can lower it
+    const rowLimit = bodySpec.rows === "auto" ? undefined : Math.max(1, Math.floor(bodySpec.rows ?? 1));
+    const gridCap = rowLimit ? cols * rowLimit : undefined;
+    const pageCap = gridCap && bodySpec.perPage ? Math.min(gridCap, bodySpec.perPage) : gridCap ?? bodySpec.perPage;
+    const itemW = (contentW - gap * (cols - 1)) / cols;
+    const pageBottom = pageH - bottomMargin;
+    const usableH = Math.max(40, pageBottom - topMargin);
+    const count = table.rows.length;
+    const lineH = fontSize * 1.3;
+    const ink = bodyText ?? textColor;
 
-  const styles: Record<string, unknown> = {
-    font: fontName,
-    fontSize,
-    cellPadding: sides(st.cellPadding, 4),
-    overflow: "linebreak",
-    valign: "middle",
-  };
-  if (bodyText) styles.textColor = bodyText;
-  else if (pageBg) styles.textColor = contrastText(pageBg); // dark page, light text
-  if (lineColor) styles.lineColor = lineColor;
-  if (st.borderWidth !== undefined) styles.lineWidth = st.borderWidth;
-  else if (lineColor) styles.lineWidth = 0.5; // a border colour without a width would draw nothing in "striped"
-  if (st.minRowHeight) styles.minCellHeight = st.minRowHeight;
+    // The text of every column of a row, by field, for `{field}` templates
+    const fill = (template: string, i: number) =>
+      template.replace(/\{([^{}]+)\}/g, (whole, key: string) => {
+        if (key === "index") return String(i + 1);
+        const k = table.fields.indexOf(key);
+        return k >= 0 ? table.rows[i]?.[k] ?? "" : whole;
+      });
 
-  const tableOptions: Record<string, unknown> = {
-    head: [table.headers],
-    body: table.rows,
-    startY,
-    margin: { top: topMargin, right: m.right, bottom: bottomMargin, left: m.left },
-    theme: tableTheme,
-    showHead: "everyPage",
-    styles,
-    headStyles: {
-      fillColor: headFill,
-      textColor: headText,
-      fontStyle: st.headFontStyle && FONT_STYLES.includes(st.headFontStyle) ? st.headFontStyle : "bold",
-      ...(st.headFontSize ? { fontSize: st.headFontSize } : null),
-    },
-    columnStyles,
-    // A new page starts blank: paint its background before the table draws on it
-    willDrawPage: () => {
-      const info = typeof doc.getCurrentPageInfo === "function" ? doc.getCurrentPageInfo() : doc.internal.getCurrentPageInfo?.();
-      if (info?.pageNumber) paintPage(info.pageNumber);
-    },
-  };
-  // Rows: with two stripe colours they alternate; with one body colour every row gets it
-  if (bodyFill) tableOptions.bodyStyles = { fillColor: bodyFill };
-  if (stripeA && stripeB) {
-    tableOptions.bodyStyles = { fillColor: stripeA };
-    tableOptions.alternateRowStyles = { fillColor: stripeB };
-  } else if (stripeA || bodyFill) {
-    // One colour only: no alternate shading
-    tableOptions.alternateRowStyles = { fillColor: bodyFill };
+    type Item = { block: Block; lines?: string[]; h: number };
+    const makeItem = async (i: number): Promise<Item | null> => {
+      const row = exportedRows[i];
+      let node: ReactNode;
+      if (bodySpec.component) node = createElement(bodySpec.component, { row, index: i, count });
+      else if (typeof bodySpec.render === "string") node = fill(bodySpec.render, i);
+      else node = bodySpec.render ? bodySpec.render(row, i) : "";
+      const block = await toBlock(node, itemW, usableH, libs, elementBg, elementFg);
+      if (!block) return null;
+      if (block.kind === "image") return { block, h: block.height };
+      doc.setFont(fontName, "normal");
+      doc.setFontSize(fontSize);
+      const lines = doc.splitTextToSize(block.text, itemW) as string[];
+      return { block, lines, h: lines.length * lineH };
+    };
+
+    let y = startY;
+    let onPage = 0; // blocks already on this page
+    let line: Item[] = [];
+    const newPage = () => {
+      doc.addPage();
+      paintPage(typeof doc.getNumberOfPages === "function" ? doc.getNumberOfPages() : doc.internal.getNumberOfPages());
+      y = topMargin;
+      onPage = 0;
+    };
+    /** Draws the blocks collected for one line (one block, or `columns` of them side by side). */
+    const flush = () => {
+      if (line.length === 0) return;
+      const h = Math.max(...line.map((it) => it.h));
+      const tooMany = !!pageCap && onPage + line.length > pageCap;
+      const tooTall = y + h > pageBottom;
+      // A full page (too many blocks, or no room left) sends the line to a new page
+      if ((onPage > 0 || y > topMargin + 0.5) && (tooMany || tooTall)) newPage();
+      line.forEach((it, k) => {
+        const x = m.left + k * (itemW + gap);
+        if (it.block.kind === "image") doc.addImage(it.block.dataUrl, "PNG", x, y, it.block.width, it.block.height);
+        else {
+          doc.setFont(fontName, "normal");
+          doc.setFontSize(fontSize);
+          doc.setTextColor(...ink);
+          doc.text(it.lines ?? [], x, y + fontSize);
+        }
+      });
+      y += h + gap;
+      onPage += line.length;
+      line = [];
+    };
+    for (let i = 0; i < count; i++) {
+      const item = await makeItem(i);
+      if (!item) continue;
+      line.push(item);
+      if (line.length === cols) flush();
+    }
+    flush();
+  } else {
+    // Per column: alignment from the column, then whatever `style.columns` says for that field
+    const columnStyles: Record<number, Record<string, unknown>> = {};
+    table.fields.forEach((field, i) => {
+      const cs = st.columns?.[field];
+      const style: Record<string, unknown> = {};
+      const align = cs?.align ?? table.aligns[i];
+      if (align) style.halign = align;
+      if (cs?.width !== undefined) style.cellWidth = cs.width;
+      const color = parseColor(cs?.textColor);
+      if (color) style.textColor = color;
+      const fill = parseColor(cs?.backgroundColor);
+      if (fill) style.fillColor = fill;
+      if (cs?.fontStyle && FONT_STYLES.includes(cs.fontStyle)) style.fontStyle = cs.fontStyle;
+      if (cs?.fontSize) style.fontSize = cs.fontSize;
+      if (Object.keys(style).length > 0) columnStyles[i] = style;
+    });
+
+    const styles: Record<string, unknown> = {
+      font: fontName,
+      fontSize,
+      cellPadding: sides(st.cellPadding, 4),
+      overflow: "linebreak",
+      valign: "middle",
+    };
+    if (bodyText) styles.textColor = bodyText;
+    else if (pageBg) styles.textColor = contrastText(pageBg); // dark page, light text
+    if (lineColor) styles.lineColor = lineColor;
+    if (st.borderWidth !== undefined) styles.lineWidth = st.borderWidth;
+    else if (lineColor) styles.lineWidth = 0.5; // a border colour without a width would draw nothing in "striped"
+    if (st.minRowHeight) styles.minCellHeight = st.minRowHeight;
+
+    const tableOptions: Record<string, unknown> = {
+      head: [table.headers],
+      body: table.rows,
+      startY,
+      margin: { top: topMargin, right: m.right, bottom: bottomMargin, left: m.left },
+      theme: tableTheme,
+      showHead: "everyPage",
+      styles,
+      headStyles: {
+        fillColor: headFill,
+        textColor: headText,
+        fontStyle: st.headFontStyle && FONT_STYLES.includes(st.headFontStyle) ? st.headFontStyle : "bold",
+        ...(st.headFontSize ? { fontSize: st.headFontSize } : null),
+      },
+      columnStyles,
+      // A new page starts blank: paint its background before the table draws on it
+      willDrawPage: () => {
+        const info = typeof doc.getCurrentPageInfo === "function" ? doc.getCurrentPageInfo() : doc.internal.getCurrentPageInfo?.();
+        if (info?.pageNumber) paintPage(info.pageNumber);
+      },
+    };
+    // Rows: with two stripe colours they alternate; with one body colour every row gets it
+    if (bodyFill) tableOptions.bodyStyles = { fillColor: bodyFill };
+    if (stripeA && stripeB) {
+      tableOptions.bodyStyles = { fillColor: stripeA };
+      tableOptions.alternateRowStyles = { fillColor: stripeB };
+    } else if (stripeA || bodyFill) {
+      // One colour only: no alternate shading
+      tableOptions.alternateRowStyles = { fillColor: bodyFill };
+    }
+
+    // Colours chosen from the data: the row's look first, then the cell's own look on top
+    if (rowStyle || cellStyle) {
+      const apply = (cell: any, s: PdfRowStyle | null | undefined | void) => {
+        if (!s) return;
+        const fill = parseColor(s.backgroundColor);
+        const color = parseColor(s.textColor);
+        if (fill) cell.styles.fillColor = fill;
+        if (color) cell.styles.textColor = color;
+        if (s.fontStyle && FONT_STYLES.includes(s.fontStyle)) cell.styles.fontStyle = s.fontStyle;
+        if (s.fontSize) cell.styles.fontSize = s.fontSize;
+      };
+      const userHook = autoTableOptions?.didParseCell as ((data: any) => void) | undefined;
+      tableOptions.didParseCell = (data: any) => {
+        if (data.section === "body") {
+          const r: number = data.row.index;
+          const k: number = data.column.index;
+          const source = table.sources?.[r];
+          if (rowStyle) apply(data.cell, typeof rowStyle === "function" ? rowStyle(source, r) : rowStyle);
+          if (cellStyle) apply(data.cell, typeof cellStyle === "function" ? cellStyle({ row: source, value: table.raw?.[r]?.[k], field: table.fields[k], rowIndex: r }) : cellStyle);
+        }
+        userHook?.(data); // your own autoTableOptions.didParseCell still runs, after ours
+      };
+    }
+
+    // Anything in `autoTableOptions` has the last word (its own nested styles replace ours key by key)
+    const merged: Record<string, unknown> = { ...tableOptions, ...autoTableOptions };
+    if (tableOptions.didParseCell) merged.didParseCell = tableOptions.didParseCell; // ours already calls yours
+    for (const key of ["styles", "headStyles", "bodyStyles", "alternateRowStyles", "margin"]) {
+      const mine = tableOptions[key];
+      const theirs = autoTableOptions?.[key];
+      if (mine && theirs && typeof theirs === "object") merged[key] = { ...(mine as object), ...theirs };
+    }
+    autoTable(doc, merged);
   }
-
-  // Anything in `autoTableOptions` has the last word (its own nested styles replace ours key by key)
-  const merged: Record<string, unknown> = { ...tableOptions, ...autoTableOptions };
-  for (const key of ["styles", "headStyles", "bodyStyles", "alternateRowStyles", "margin"]) {
-    const mine = tableOptions[key];
-    const theirs = autoTableOptions?.[key];
-    if (mine && theirs && typeof theirs === "object") merged[key] = { ...(mine as object), ...theirs };
-  }
-  autoTable(doc, merged);
 
   // ---- draw header, footer and page numbers on every page (now that the page count is known) ----
   const pages: number = typeof doc.getNumberOfPages === "function" ? doc.getNumberOfPages() : doc.internal.getNumberOfPages();
@@ -338,10 +464,21 @@ export async function buildPdf(table: PdfTable, options: PdfExportOptions = {}, 
     doc.text(lines, x, top + TEXT_SIZE, { align });
   };
 
+  /** A header / footer that is a function is called for this page; a picture is shrunk to the space measured for it. */
+  const blockFor = async (spec: unknown, fixed: Block | null, page: number, maxH: number): Promise<Block | null> => {
+    if (typeof spec !== "function") return fixed;
+    const b = await toBlock(resolveFor(spec, page, pages), contentW, maxImageHeight, libs, elementBg, elementFg);
+    if (b && b.kind === "image" && maxH > 0 && b.height > maxH) {
+      const k = maxH / b.height;
+      return { ...b, width: b.width * k, height: maxH };
+    }
+    return b;
+  };
+
   for (let page = 1; page <= pages; page++) {
     doc.setPage(page);
-    drawBlock(headerBlock, HEADER_TOP, headerAlign, page);
-    drawBlock(footerBlock, footerBottom - footerH, footerAlign, page);
+    drawBlock(await blockFor(header, headerBlock, page, headerH), HEADER_TOP, headerAlign, page);
+    drawBlock(await blockFor(footer, footerBlock, page, footerH), footerBottom - footerH, footerAlign, page);
     if (pageNumbers) {
       doc.setFont(fontName, "normal");
       doc.setFontSize(8);
